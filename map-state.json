@@ -1,10 +1,10 @@
 {
   "project": "ЕНТРОПІЯ — Ковчег Вавилонії (v3 Biomes & Admin)",
-  "exportedAt": "2026-10-17T19:58:05.222Z",
-  "updatedAt": 1792267085222,
+  "exportedAt": "2026-10-17T22:22:08.138Z",
+  "updatedAt": 1792275728138,
   "unlockedSectors": {
     "0": false,
-    "1": true,
+    "1": false,
     "2": false,
     "3": false,
     "4": false,
