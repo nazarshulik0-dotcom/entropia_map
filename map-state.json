@@ -1,7 +1,7 @@
 {
   "project": "ЕНТРОПІЯ — Ковчег Вавилонії (v4 Biomes & Sector Nav)",
-  "exportedAt": "2026-10-19T14:46:32.369Z",
-  "updatedAt": 1792421192369,
+  "exportedAt": "2026-10-19T14:47:36.133Z",
+  "updatedAt": 1792421256133,
   "unlockedSectors": {
     "0": false,
     "1": true,
@@ -105,6 +105,6 @@
     "sectorCode": "СЕКТОР I",
     "sectorName": "Карантинні Сади",
     "file": "sector1.html",
-    "timestamp": 1792421192363
+    "timestamp": 1792421256129
   }
 }
