@@ -1,12 +1,12 @@
 {
   "project": "ЕНТРОПІЯ — Сектор I: Карантинні Сади",
   "sectorId": 1,
-  "updatedAt": 1792368094862,
+  "updatedAt": 1792368095701,
   "unlockedSubzones": {
     "sz_metro_glade": false,
     "sz_sanctum_west": false,
-    "sz_hydro_east": true,
-    "sz_central_domes": false,
+    "sz_hydro_east": false,
+    "sz_central_domes": true,
     "sz_sync_northeast": false,
     "sz_bastion_northwest": false,
     "sz_beacon_north": false
