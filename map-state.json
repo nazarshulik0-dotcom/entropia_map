@@ -1,10 +1,10 @@
 {
-  "project": "ЕНТРОПІЯ — Ковчег Вавилонії (v3 Biomes & Admin)",
-  "exportedAt": "2026-10-17T22:22:08.138Z",
-  "updatedAt": 1792275728138,
+  "project": "ЕНТРОПІЯ — Ковчег Вавилонії (v4 Biomes & Sector Nav)",
+  "exportedAt": "2026-10-19T00:00:41.371Z",
+  "updatedAt": 1792368041371,
   "unlockedSectors": {
     "0": false,
-    "1": false,
+    "1": true,
     "2": false,
     "3": false,
     "4": false,
@@ -99,5 +99,12 @@
   "showSectors": false,
   "showLabels": true,
   "adminPin": "ентропія",
-  "githubRepo": "nazarshulik0-dotcom/entropia_map"
+  "githubRepo": "nazarshulik0-dotcom/entropia_map",
+  "groupTransfer": {
+    "sectorId": 1,
+    "sectorCode": "СЕКТОР I",
+    "sectorName": "Карантинні Сади",
+    "file": "sector1.html",
+    "timestamp": 1792368041368
+  }
 }
