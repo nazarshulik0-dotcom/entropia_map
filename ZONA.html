@@ -1,0 +1,2628 @@
+<!DOCTYPE html>
+<html lang="uk" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ЕНТРОПІЯ — Тактичний Стіл (ZONA.html)</title>
+
+  <!-- 1. ПІДКЛЮЧЕННЯ МОСТА ЕНТРОПІЇ -->
+  <script src="entropia_bridge.js"></script>
+
+  <!-- Tailwind CSS, FontAwesome та MQTT -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-dark: #0b0e14;
+      --bg-glass: #121722;
+      --accent-emerald: #10b981;
+      --accent-cyan: #22d3ee;
+    }
+    body {
+      background-color: var(--bg-dark);
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+    .font-mono-tech { font-family: 'JetBrains Mono', monospace; }
+    .glass-panel {
+      background: rgba(18, 23, 34, 0.94);
+      backdrop-filter: blur(14px);
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #0b0e14; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #10b981; }
+    .mode-active {
+      background: rgba(16, 185, 129, 0.18) !important;
+      border-color: #10b981 !important;
+      color: #10b981 !important;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+    }
+    .tool-active {
+      background: rgba(34, 211, 238, 0.2) !important;
+      border-color: #22d3ee !important;
+      color: #22d3ee !important;
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
+    }
+    .stat-card-active {
+      background: rgba(16, 185, 129, 0.22) !important;
+      border-color: #10b981 !important;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+    }
+    .skill-chip-active {
+      background: rgba(34, 211, 238, 0.22) !important;
+      border-color: #22d3ee !important;
+      color: #67e8f9 !important;
+    }
+    @keyframes diePop {
+      0% { transform: scale(0.6) rotate(-12deg); opacity: 0; }
+      70% { transform: scale(1.06) rotate(2deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .vitruvia-die-anim { animation: diePop 0.26s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .half-party-symbol { clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%); }
+    input[type="range"] { accent-color: #10b981; }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col bg-[#0b0e14] text-slate-200">
+
+  <!-- ВЕРХНЯ ПАНЕЛЬ (HEADER) -->
+  <header class="h-14 bg-[#121722] border-b border-slate-800/90 px-3 md:px-4 flex items-center justify-between shrink-0 z-30 gap-2">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <button id="btnToggleLeftSidebar" onclick="toggleLeftSidebar()" class="hidden px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition flex items-center gap-1.5 shrink-0" title="Показати / Сховати панель «Простір»">
+        <i class="fa-solid fa-table-columns"></i>
+        <span class="hidden sm:inline">Простір</span>
+      </button>
+
+      <div class="flex items-center gap-2 text-sm md:text-base font-semibold truncate">
+        <span id="breadcrumbSector" class="text-emerald-400 font-mono-tech shrink-0">Сектор I</span>
+        <i class="fa-solid fa-chevron-right text-[10px] text-slate-600"></i>
+        <span id="breadcrumbZoneTitle" class="text-slate-100 truncate">Центральний Купольний Дендрарій</span>
+        <button id="btnEditZoneTitle" onclick="editZoneTitle()" class="hidden text-xs px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 transition shrink-0" title="Редагувати назву зони">✏️</button>
+      </div>
+
+      <div class="hidden lg:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 text-xs font-mono-tech shrink-0">
+        <span id="mqttDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="mqttStatusText" class="text-slate-400">MQTT: З'єднання...</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 shrink-0">
+      <div id="roleBadge" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs font-medium">
+        <span id="roleIcon">👁️</span>
+        <span id="roleLabel">Режим Гравця</span>
+      </div>
+
+      <button onclick="toggleVitruviaModal(true)" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 text-xs text-cyan-300 font-mono-tech transition" title="Відкрити кубики персонажа">
+        <span>👤</span>
+        <span id="charNameHeader" class="max-w-[130px] truncate">Дослідник</span>
+      </button>
+
+      <button id="btnAdminAuth" onclick="handleAdminAuthClick()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 transition flex items-center gap-1.5">
+        <span>🔒</span>
+        <span id="adminBtnText" class="hidden md:inline">Вхід Адміна</span>
+      </button>
+
+      <button id="btnVitruviaWidget" onclick="toggleVitruviaModal()" class="px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-300 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
+        <span>💠</span>
+        <span class="hidden sm:inline">Стіл Кубиків «Вітрувія»</span>
+      </button>
+
+      <button onclick="handleReturnToSectorClick()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-500/50 text-slate-200 text-xs font-semibold transition flex items-center gap-1.5">
+        <span>⬅️</span>
+        <span class="hidden md:inline">Назад у Сектор</span>
+      </button>
+
+      <button id="btnToggleRightSidebar" onclick="toggleRightSidebar()" class="px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-cyan-500/40 text-cyan-300 text-xs font-semibold transition flex items-center gap-1.5" title="Показати / Сховати праву панель">
+        <i class="fa-solid fa-sliders"></i>
+        <span id="rightToggleBtnText" class="hidden sm:inline">Персонаж</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ОСНОВНИЙ РОБОЧИЙ ПРОСТІР -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- ЛІВА БОКОВА ПАНЕЛЬ — «ПРОСТІР» (ЛИШЕ ДЛЯ МАЙСТРА) -->
+    <aside id="leftSidebar" class="hidden w-80 bg-[#121722] border-r border-slate-800/90 flex-col shrink-0 z-20 select-none">
+      <div class="px-3.5 py-2.5 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Простір (Режими Столу)</h2>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span id="subzoneCodeBadge" class="text-[10px] font-mono-tech text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/50">ПІДЗОНА I-D</span>
+          <button onclick="toggleLeftSidebar(false)" class="text-slate-400 hover:text-white px-1 text-xs" title="Згорнути панель">✕</button>
+        </div>
+      </div>
+
+      <div class="flex-1 flex overflow-hidden">
+        <div class="w-20 bg-[#0b0e14]/90 border-r border-slate-800/80 p-1.5 flex flex-col gap-1.5 text-[11px]">
+          <button id="modeBtn_grid" onclick="selectSpaceMode('grid')" class="mode-active py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">▦</span><span class="font-medium">Сітка</span>
+          </button>
+          <button id="modeBtn_bg" onclick="selectSpaceMode('bg')" class="py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">🖼️</span><span class="font-medium">Підкладка</span>
+          </button>
+          <button id="modeBtn_zones" onclick="selectSpaceMode('zones')" class="py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">🏷️</span><span class="font-medium">Зони</span>
+          </button>
+          <button id="modeBtn_walls" onclick="selectSpaceMode('walls')" class="py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">🧱</span><span class="font-medium">Межі</span>
+          </button>
+          <button id="modeBtn_objects" onclick="selectSpaceMode('objects')" class="py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">📦</span><span class="font-medium">Об'єкти</span>
+          </button>
+          <button id="modeBtn_tokens" onclick="selectSpaceMode('tokens')" class="py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">👤</span><span class="font-medium">Токени</span>
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+          <!-- 1. ▦ СІТКА -->
+          <div id="spacePanel_grid" class="space-y-3">
+            <div class="font-bold text-emerald-400 flex items-center justify-between">
+              <span>▦ Параметри Сітки</span>
+              <span id="gridSizeLabel" class="font-mono-tech text-slate-200">14×14</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2.5">
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Розмір сітки (8×8 – 32×32)</span></div>
+                <input id="inputGridCount" type="range" min="8" max="32" value="14" oninput="updateGridConfig()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Зміщення X (px)</span><span id="gridOffsetXLabel" class="font-mono-tech">0px</span></div>
+                <input id="inputGridOffsetX" type="range" min="-60" max="60" value="0" oninput="updateGridConfig()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Зміщення Y (px)</span><span id="gridOffsetYLabel" class="font-mono-tech">0px</span></div>
+                <input id="inputGridOffsetY" type="range" min="-60" max="60" value="0" oninput="updateGridConfig()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Відступ рамки</span><span id="gridPaddingLabel" class="font-mono-tech">28px</span></div>
+                <input id="inputGridPadding" type="range" min="16" max="80" value="28" oninput="updateGridConfig()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Прозорість ліній</span><span id="gridOpacityLabel" class="font-mono-tech">35%</span></div>
+                <input id="inputGridOpacity" type="range" min="5" max="100" value="35" oninput="updateGridConfig()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. 🖼️ ПІДКЛАДКА -->
+          <div id="spacePanel_bg" class="hidden space-y-3">
+            <div class="font-bold text-cyan-400">🖼️ Фонова Підкладка</div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2.5">
+              <div class="relative h-28 rounded-lg overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center">
+                <img id="bgPreviewImg" src="" alt="Підкладка" class="hidden w-full h-full object-cover" />
+                <div id="bgPreviewEmpty" class="text-[11px] text-slate-500 text-center px-2">Blueprint-режим (скріншот із sector1.html не передано)</div>
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Яскравість</span><span id="bgBrightnessLabel" class="font-mono-tech">100%</span></div>
+                <input id="inputBgBrightness" type="range" min="20" max="180" value="100" oninput="updateBgAdjustments()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Контраст</span><span id="bgContrastLabel" class="font-mono-tech">100%</span></div>
+                <input id="inputBgContrast" type="range" min="50" max="180" value="100" oninput="updateBgAdjustments()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+              </div>
+              <div class="space-y-1.5 pt-1">
+                <label class="block w-full py-2 px-2.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 text-center cursor-pointer font-semibold transition">
+                  <i class="fa-solid fa-upload mr-1"></i> Завантажити картинку з ПК
+                  <input type="file" accept="image/*" class="hidden" onchange="handleBgUploadFromPC(event)">
+                </label>
+                <button onclick="promptBgFromUrl()" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition">🔗 Замінити за URL</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. 🏷️ ЗОНИ -->
+          <div id="spacePanel_zones" class="hidden space-y-3">
+            <div class="font-bold text-emerald-400">🏷️ Розмітка Кімнат та Зон</div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2.5">
+              <p class="text-[11px] text-slate-400 leading-relaxed">Затисніть ЛКМ на полі та виділіть прямокутник, щоб підписати кімнату («Посадочна зона», «Укриття»).</p>
+              <button id="btnActivateZoneTool" onclick="setActiveTool('zone')" class="w-full py-2 px-3 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 font-semibold transition">➕ Малювати прямокутну зону</button>
+              <div class="grid grid-cols-2 gap-1.5">
+                <button onclick="setZoneColor('#10b981')" class="py-1 rounded bg-emerald-500/20 border border-emerald-500/60 text-emerald-300 text-[11px]">Смарагд</button>
+                <button onclick="setZoneColor('#22d3ee')" class="py-1 rounded bg-cyan-500/20 border border-cyan-500/60 text-cyan-300 text-[11px]">Ціан</button>
+                <button onclick="setZoneColor('#f59e0b')" class="py-1 rounded bg-amber-500/20 border border-amber-500/60 text-amber-300 text-[11px]">Бурштин</button>
+                <button onclick="setZoneColor('#f43f5e')" class="py-1 rounded bg-rose-500/20 border border-rose-500/60 text-rose-300 text-[11px]">Небезпека</button>
+              </div>
+              <button onclick="removeLastZone()" class="w-full py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-rose-950/60 border border-slate-700 text-slate-400 hover:text-rose-300 transition">🗑️ Видалити останню зону</button>
+            </div>
+          </div>
+
+          <!-- 4. 🧱 МЕЖІ -->
+          <div id="spacePanel_walls" class="hidden space-y-3">
+            <div class="font-bold text-amber-400">🧱 Межі та Небезпеки</div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2">
+              <div class="text-[11px] text-slate-400 font-medium">Стіни та Перешкоди:</div>
+              <button id="btnWallBlock" onclick="setActiveTool('wall_cell')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left flex items-center gap-2 transition"><span>🧱</span> <span>Стіна (Клітинка)</span></button>
+              <button id="btnWallVector" onclick="setActiveTool('wall_vector')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left flex items-center gap-2 transition"><span>📐</span> <span>Векторна стіна (Лінія)</span></button>
+              <div class="text-[11px] text-slate-400 font-medium pt-1">Небезпечні клітинки:</div>
+              <button id="btnHazardSpores" onclick="selectHazardBrush('spores')" class="w-full py-1.5 px-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 border border-rose-700/50 text-rose-300 text-left flex items-center gap-2 transition"><span>☣️</span> <span>Спори Скверни</span></button>
+              <button id="btnHazardFire" onclick="selectHazardBrush('fire')" class="w-full py-1.5 px-2.5 rounded-lg bg-orange-950/40 hover:bg-orange-900/50 border border-orange-700/50 text-orange-300 text-left flex items-center gap-2 transition"><span>🔥</span> <span>Вогонь / Плазма</span></button>
+              <button id="btnHazardAcid" onclick="selectHazardBrush('acid')" class="w-full py-1.5 px-2.5 rounded-lg bg-lime-950/40 hover:bg-lime-900/50 border border-lime-700/50 text-lime-300 text-left flex items-center gap-2 transition"><span>🧪</span> <span>Кислота</span></button>
+              <div class="pt-1 border-t border-slate-800 flex gap-1.5">
+                <button id="btnEraseCell" onclick="setActiveTool('erase_cell')" class="flex-1 py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition">🧹 Гумка</button>
+                <button onclick="popLastVectorWall()" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-rose-950/50 border border-slate-700 text-slate-400" title="Скасувати векторну стіну">↩️</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. 📦 ОБ'ЄКТИ -->
+          <div id="spacePanel_objects" class="hidden space-y-3">
+            <div class="font-bold text-cyan-400">📦 Шар Об'єктів Оточення</div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2">
+              <p class="text-[11px] text-slate-400 leading-relaxed">Використовуйте праву панель Каталогу для розміщення об'єктів Вавилонії на полі.</p>
+              <button onclick="toggleRightSidebar(true)" class="w-full py-2 px-3 rounded-lg bg-cyan-500/20 border border-cyan-500/50 text-cyan-300 font-semibold">Відкрити Каталог ➔</button>
+            </div>
+          </div>
+
+          <!-- 6. 👤 ТОКЕНИ -->
+          <div id="spacePanel_tokens" class="hidden space-y-3">
+            <div class="font-bold text-emerald-400">👤 Швидкі Токени Майстра</div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-1.5">
+              <button onclick="spawnQuickToken('automaton')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-between"><span>🤖 Автоматон</span><span class="text-[10px] font-mono-tech text-cyan-400">HP 80 | Щит 30</span></button>
+              <button onclick="spawnQuickToken('predator')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-between"><span>☣️ Хижак Скверни</span><span class="text-[10px] font-mono-tech text-rose-400">HP 110 | Щит 0</span></button>
+              <button onclick="spawnQuickToken('boss')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-between"><span>🛡️ Вартовий / Бос</span><span class="text-[10px] font-mono-tech text-amber-400">HP 260 | Щит 80</span></button>
+              <button onclick="spawnQuickToken('npc')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-between"><span>👤 НПС Ковчега</span><span class="text-[10px] font-mono-tech text-emerald-400">HP 60 | Щит 10</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-3 border-t border-slate-800 bg-[#0d121b]">
+        <button onclick="downloadUpdatedHtml()" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-950/50 transition flex items-center justify-center gap-2">
+          <span>💾</span> <span>Оновити HTML</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ЦЕНТРАЛЬНИЙ ТАКТИЧНИЙ CANVAS -->
+    <main id="canvasViewport" class="flex-1 relative bg-[#070a0f] overflow-hidden flex items-center justify-center"
+          ondragover="handleCanvasDragOver(event)" ondrop="handleCanvasDrop(event)">
+      <canvas id="tacticalCanvas" class="cursor-crosshair block"></canvas>
+
+      <!-- Шари поверхів -->
+      <div class="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-panel border border-slate-700/80 text-xs font-mono-tech shadow-lg">
+        <span class="text-slate-400">Шари:</span>
+        <span id="floorIndicator" class="text-cyan-400 font-bold">1/1</span>
+        <span id="floorNameLabel" class="text-[11px] text-slate-300 px-1">Рівень 1</span>
+        <button onclick="changeFloorLayer(1)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" title="Поверх вище">↑</button>
+        <button onclick="changeFloorLayer(-1)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" title="Поверх нижче">↓</button>
+        <button id="btnAddFloor" onclick="addFloorLayer()" class="hidden px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 transition" title="Додати поверх">+</button>
+      </div>
+
+      <!-- Фолбек-кнопка завантаження підкладки -->
+      <div id="blueprintFallbackBanner" class="hidden absolute top-14 left-3 z-20 px-3 py-2 rounded-xl glass-panel border border-cyan-500/40 text-xs flex items-center gap-2.5 shadow-lg">
+        <span class="text-cyan-400"><i class="fa-solid fa-compass-drafting"></i> Blueprint-фон</span>
+        <label class="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 cursor-pointer font-medium transition">
+          📥 Завантажити карту з ПК
+          <input type="file" accept="image/*" class="hidden" onchange="handleBgUploadFromPC(event)">
+        </label>
+      </div>
+
+      <!-- Індикатор координати -->
+      <div class="absolute top-3 right-3 z-20 px-3 py-1.5 rounded-xl glass-panel border border-slate-800 text-xs font-mono-tech text-slate-300">
+        Квадрат: <span id="hoverCoordText" class="text-emerald-400 font-bold">А-1</span>
+      </div>
+
+      <!-- ПЛАВАЮЧИЙ НИЖНІЙ ТУЛБАР -->
+      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-2xl glass-panel border border-slate-700/80 shadow-2xl flex items-center gap-1.5 text-xs">
+        <button id="toolbarBtn_fog" onclick="toggleFogToolOrVisibility()" class="hidden px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5" title="Туман війни (Майстер)">
+          <span>👁️</span> <span class="hidden md:inline">Туман</span>
+        </button>
+        <button id="toolbarBtn_grid" onclick="toggleGridLines()" class="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 transition flex items-center gap-1.5" title="Увімкнути / Вимкнути сітку">
+          <span>▦</span> <span class="hidden md:inline">Сітка</span>
+        </button>
+        <button onclick="resetCameraAndZoom()" class="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5" title="Центрувати поле">
+          <span>⛶</span> <span class="hidden md:inline">Центр</span>
+        </button>
+        <div class="h-4 w-px bg-slate-700 mx-0.5"></div>
+        <button id="toolbarBtn_ruler" onclick="setActiveTool('ruler')" class="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5" title="Лінійка">
+          <span>📏</span> <span class="hidden md:inline">Лінійка</span>
+        </button>
+        <button id="toolbarBtn_select" onclick="setActiveTool('select')" class="tool-active px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5" title="Курсор переміщення">
+          <span>↖</span> <span class="hidden md:inline">Курсор</span>
+        </button>
+        <button id="toolbarBtn_text" onclick="setActiveTool('text')" class="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5" title="Текстова мітка">
+          <span class="font-mono-tech font-bold">T</span> <span class="hidden md:inline">Мітка</span>
+        </button>
+        <div class="h-4 w-px bg-slate-700 mx-0.5"></div>
+        <button onclick="stepZoom(-0.15)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono-tech font-bold">−</button>
+        <span id="zoomLabel" class="px-2 font-mono-tech text-cyan-400 min-w-[48px] text-center">100%</span>
+        <button onclick="stepZoom(0.15)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono-tech font-bold">+</button>
+      </div>
+
+      <!-- ПЕРЕСУВНИЙ СТІЛ КУБИКІВ «ВІТРУВІЯ» ЗІ ЗНАКОМ ПАРТІЇ 💠 -->
+      <div id="vitruviaModal" style="top: 64px; left: 24px;" class="hidden fixed z-40 w-[360px] sm:w-[440px] max-h-[calc(100vh-80px)] flex flex-col rounded-2xl glass-panel border border-emerald-500/60 shadow-2xl text-xs">
+        <div id="vitruviaDragHandle" class="px-4 py-2.5 bg-slate-900/95 border-b border-slate-800 rounded-t-2xl flex items-center justify-between cursor-move select-none shrink-0">
+          <div class="flex items-center gap-2 font-bold text-emerald-400 text-sm">
+            <span>💠</span>
+            <span>Стіл Кубиків «Вітрувія»</span>
+            <span class="text-[10px] font-mono-tech text-slate-500 font-normal">(тягни)</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button onclick="refreshCharacterFromBridge(true)" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[10px] font-mono-tech" title="Перечитати дані з Листа Персонажа">
+              🔄 Зчитати Лист
+            </button>
+            <button onclick="toggleVitruviaMinimize()" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300" title="Згорнути / Розгорнути">—</button>
+            <button onclick="toggleVitruviaModal(false)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-rose-900/70 text-slate-300 hover:text-white" title="Закрити">✕</button>
+          </div>
+        </div>
+
+        <div id="vitruviaModalBody" class="p-3.5 space-y-3 overflow-y-auto">
+          <!-- Інфо про персонажа та формула пулу -->
+          <div class="p-2.5 rounded-xl bg-slate-900/95 border border-slate-800 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-[10px] text-slate-400">Синхронізований персонаж:</div>
+              <div id="vitruviaCharNameLabel" class="font-bold text-cyan-300 text-sm truncate">Дослідник</div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-[10px] text-slate-400">Пул кидка:</div>
+              <div id="vitruviaPoolFormula" class="font-mono-tech font-bold text-emerald-400 text-xs">3 куб.</div>
+            </div>
+          </div>
+
+          <!-- 1. ХАРАКТЕРИСТИКИ З ЛИСТА ПЕРСОНАЖА -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">1. Характеристики з Листа Персонажа:</span>
+              <span id="selectedStatBadge" class="text-[11px] font-mono-tech text-emerald-400 font-bold">⚔️ Бій: 3</span>
+            </div>
+            <div id="vitruviaStatsGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-1.5"></div>
+          </div>
+
+          <!-- 2. НАВИЧКИ З ЛИСТА ПЕРСОНАЖА ТА МОДИФІКАТОР -->
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">2. Навички персонажа та Модифікатор:</span>
+              <button onclick="resetSkillAndMod()" class="text-[10px] text-slate-400 hover:text-rose-300">Скинути мод.</button>
+            </div>
+
+            <!-- Виключно реальні навички з Листа Персонажа -->
+            <div id="vitruviaSkillsRow" class="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/80"></div>
+
+            <!-- Ситуативний модифікатор (+/- кубики) та підсумковий пул -->
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div class="p-2 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
+                <span class="text-[11px] text-slate-400">Модифікатор:</span>
+                <div class="flex items-center gap-1 font-mono-tech">
+                  <button onclick="adjustManualDiceMod(-1)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold">−</button>
+                  <span id="manualModValue" class="w-7 text-center font-bold text-cyan-300">+0</span>
+                  <button onclick="adjustManualDiceMod(1)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold">+</button>
+                </div>
+              </div>
+
+              <div class="p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/40 flex items-center justify-between">
+                <span class="text-[11px] text-emerald-200 font-medium">Всього кубів:</span>
+                <div class="flex items-center gap-1 font-mono-tech">
+                  <button onclick="adjustTotalPoolDirectly(-1)" class="w-6 h-6 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold">−</button>
+                  <span id="finalDicePoolCount" class="w-7 text-center font-bold text-emerald-400 text-sm">3</span>
+                  <button onclick="adjustTotalPoolDirectly(1)" class="w-6 h-6 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Легенда граней -->
+          <div class="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-slate-800/90 flex items-center justify-between text-[10px] text-slate-400 font-mono-tech">
+            <span class="text-emerald-300">💠 Повний = <b>2 очки</b> (1/6)</span>
+            <span class="text-cyan-300">½💠 Пів знака = <b>1 очко</b> (2/6)</span>
+            <span class="text-slate-500">◇ Пуста = <b>0</b> (3/6)</span>
+          </div>
+
+          <!-- Кнопка кидка -->
+          <button onclick="rollVitruviaTabletop()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-950/50 transition flex items-center justify-center gap-2">
+            <span>💠</span>
+            <span id="rollButtonActionText">Кинути 3 Кубики «Вітрувія»</span>
+          </button>
+
+          <!-- Табло результату -->
+          <div class="p-3 rounded-xl bg-[#070a0f] border border-slate-800 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div>
+                <div id="rollResultTitle" class="text-[11px] text-slate-400">Результат кидка:</div>
+                <div id="rollBreakdownText" class="text-[10px] font-mono-tech text-slate-500">Оберіть характеристику та киньте куби</div>
+              </div>
+              <div class="text-right">
+                <span id="rollTotalPointsBadge" class="px-3 py-1 rounded-xl bg-emerald-500/20 border border-emerald-500/50 font-mono-tech font-bold text-emerald-300 text-sm">0 очок</span>
+              </div>
+            </div>
+            <div id="vitruviaDiceFacesRow" class="flex flex-wrap gap-2 min-h-[58px] items-center justify-center py-1">
+              <span class="text-[11px] text-slate-600">Грані кубиків 💠 з'являться тут після кидка</span>
+            </div>
+          </div>
+
+          <!-- Журнал кидків -->
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+              <span>Журнал кидків столу (MQTT):</span>
+              <button onclick="clearDiceLog()" class="text-slate-500 hover:text-slate-300 lowercase font-normal">очистити</button>
+            </div>
+            <div id="vitruviaRollLog" class="h-28 overflow-y-auto rounded-xl bg-slate-950/90 border border-slate-800 p-2 space-y-1.5 font-mono-tech text-[11px]">
+              <div class="text-slate-500">Готовий до кидків за системою «Вітрувій» 💠...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ПРАВА ПАНЕЛЬ — КАРТКА ПЕРСОНАЖА (ГРАВЕЦЬ) / КАТАЛОГ ОБ'ЄКТІВ (МАЙСТЕР) -->
+    <aside id="rightSidebar" class="w-80 bg-[#121722] border-l border-slate-800/90 flex flex-col shrink-0 z-20 select-none">
+
+      <!-- 1. ПАНЕЛЬ ДОСЛІДНИКА (ДЛЯ ГРАВЦЯ) -->
+      <div id="playerRightView" class="flex-1 flex flex-col overflow-hidden">
+        <div class="px-3.5 py-2.5 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Панель Дослідника</h2>
+          </div>
+          <button onclick="toggleRightSidebar(false)" class="text-slate-400 hover:text-white px-1 text-xs" title="Згорнути панель">✕</button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+          <div class="p-3 rounded-xl bg-[#0b0e14] border border-cyan-500/40 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-mono-tech uppercase text-cyan-400">👤 Лист Персонажа</span>
+              <button onclick="refreshCharacterFromBridge(true)" class="text-[10px] text-emerald-400 hover:underline">🔄 Оновити з Листа</button>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <div id="playerAvatarBox" class="w-11 h-11 rounded-xl bg-slate-900 border border-cyan-500/50 flex items-center justify-center text-lg shrink-0 overflow-hidden">🚶</div>
+              <div class="min-w-0 flex-1">
+                <div id="playerSheetName" class="font-bold text-slate-100 text-sm truncate">Дослідник</div>
+                <div class="text-[11px] text-slate-400 font-mono-tech">
+                  ❤️ <span id="playerSheetHp" class="text-emerald-400">100/100</span> • 🛡️ <span id="playerSheetShield" class="text-cyan-400">20</span>
+                </div>
+              </div>
+            </div>
+
+            <button onclick="placeOrMoveMyToken()" class="w-full py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition flex items-center justify-center gap-1.5 shadow">
+              <span>🚶</span> <span>Поставити / Перемістити мою фішку</span>
+            </button>
+          </div>
+
+          <div class="p-3 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2">
+            <div class="font-semibold text-slate-300">💠 Характеристики (клік — кидок):</div>
+            <div id="playerSidebarStatsList" class="grid grid-cols-2 gap-1.5"></div>
+          </div>
+
+          <div id="playerSidebarSkillsBox" class="p-3 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2">
+            <div class="font-semibold text-slate-300">🛠️ Навички з Листа Персонажа:</div>
+            <div id="playerSidebarSkillsList" class="flex flex-wrap gap-1"></div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2">
+            <div class="font-semibold text-slate-300">🧭 Тактичні дії</div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button onclick="setActiveTool('ruler')" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition flex items-center justify-center gap-1"><span>📏</span> <span>Лінійка</span></button>
+              <button onclick="setActiveTool('text')" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition flex items-center justify-center gap-1"><span>T</span> <span>Мітка</span></button>
+            </div>
+            <button onclick="toggleVitruviaModal(true)" class="w-full py-2 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-300 font-semibold transition flex items-center justify-center gap-1.5">
+              <span>💠</span> <span>Відкрити Стіл Кубиків «Вітрувія»</span>
+            </button>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between font-semibold text-slate-300">
+              <span>У полі зору: <span id="playerVisibleCounter" class="text-emerald-400 font-mono-tech">0</span></span>
+            </div>
+            <div id="playerVisibleEntitiesList" class="space-y-1 max-h-56 overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. ПАНЕЛЬ КАТАЛОГУ ТА ОБ'ЄКТІВ (ДЛЯ МАЙСТРА) -->
+      <div id="gmRightView" class="hidden flex-1 flex-col overflow-hidden">
+        <div class="p-3 border-b border-slate-800 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+              <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Каталог та Об'єкти</h2>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="placeOrMoveMyToken()" class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 font-medium">🚶 Моя фішка</button>
+              <button onclick="toggleRightSidebar(false)" class="text-slate-400 hover:text-white px-1 text-xs" title="Згорнути панель">✕</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[#0b0e14] border border-slate-800 text-xs">
+            <button id="catTab_general" onclick="switchCatalogTab('general')" class="py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold transition">Загальні</button>
+            <button id="catTab_personal" onclick="switchCatalogTab('personal')" class="py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition">Особисті</button>
+          </div>
+
+          <div class="relative">
+            <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-500 text-xs"></i>
+            <input id="catalogSearchInput" type="text" placeholder="Пошук об'єкта або токена..." oninput="renderCatalogItems()" class="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#0b0e14] border border-slate-800 text-xs text-slate-200 focus:outline-none focus:border-emerald-500">
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Готові об'єкти</span>
+              <span class="text-[10px] text-slate-500">Клік або Drag&amp;Drop</span>
+            </div>
+            <div id="catalogGrid" class="grid grid-cols-2 gap-1.5"></div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-[#0b0e14]/90 border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-cyan-400 text-[11px]">📥 Завантажити об'єкт</span>
+              <div class="flex items-center gap-1 text-[10px] text-slate-400">
+                <span>Розмір (кл.):</span>
+                <input id="uploadCellsSize" type="number" min="1" max="8" value="1" class="w-10 px-1 py-0.5 rounded bg-slate-900 border border-slate-700 text-center font-mono-tech text-slate-200">
+              </div>
+            </div>
+            <div class="flex gap-1.5">
+              <label class="flex-1 py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-center cursor-pointer transition text-[11px] font-medium">
+                📁 PNG/JPG з ПК
+                <input type="file" accept="image/*" class="hidden" onchange="handleCustomObjectUpload(event)">
+              </label>
+              <button onclick="promptCustomObjectUrl()" class="flex-1 py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition text-[11px] font-medium">🌐 За URL</button>
+            </div>
+          </div>
+
+          <div id="objectInspector" class="hidden p-3 rounded-xl bg-slate-900/95 border border-emerald-500/50 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-emerald-400">⚙️ Параметри об'єкта</span>
+              <button onclick="deleteSelectedEntity()" class="text-rose-400 hover:text-rose-300 text-xs">🗑️ Видалити</button>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <div class="col-span-2">
+                <label class="text-[10px] text-slate-400">Назва / Ім'я</label>
+                <input id="inspName" type="text" oninput="applyInspectorChanges()" class="w-full px-2 py-1 rounded bg-slate-950 border border-slate-700 text-xs">
+              </div>
+              <div>
+                <label class="text-[10px] text-slate-400">Клітинок</label>
+                <input id="inspCells" type="number" min="1" max="8" value="1" oninput="applyInspectorChanges()" class="w-full px-2 py-1 rounded bg-slate-950 border border-slate-700 text-xs font-mono-tech text-center">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[10px] text-slate-400">❤️ HP (Здоров'я)</label>
+                <input id="inspHp" type="text" placeholder="100/100" oninput="applyInspectorChanges()" class="w-full px-2 py-1 rounded bg-slate-950 border border-slate-700 text-xs font-mono-tech">
+              </div>
+              <div>
+                <label class="text-[10px] text-slate-400">🛡️ Щит</label>
+                <input id="inspShield" type="text" placeholder="25" oninput="applyInspectorChanges()" class="w-full px-2 py-1 rounded bg-slate-950 border border-slate-700 text-xs font-mono-tech">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[10px] text-slate-400">Масштаб (<span id="inspScaleLabel">1.0</span>x)</label>
+                <input id="inspScale" type="range" min="0.5" max="3.0" step="0.1" value="1" oninput="applyInspectorChanges()" class="w-full">
+              </div>
+              <div>
+                <label class="text-[10px] text-slate-400">Поворот (<span id="inspRotLabel">0</span>°)</label>
+                <input id="inspRotation" type="range" min="0" max="360" step="15" value="0" oninput="applyInspectorChanges()" class="w-full">
+              </div>
+            </div>
+            <div class="pt-1 flex items-center justify-between border-t border-slate-800">
+              <label class="flex items-center gap-1.5 cursor-pointer text-[11px] text-amber-300">
+                <input id="inspHidden" type="checkbox" onchange="applyInspectorChanges()" class="rounded">
+                <span>🙈 Приховати у тумані</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between font-semibold text-slate-300">
+              <span>У просторі: <span id="inSpaceCounter" class="text-emerald-400 font-mono-tech">0</span></span>
+              <button onclick="clearFloorEntities()" class="text-[10px] text-slate-500 hover:text-rose-400">Очистити поверх</button>
+            </div>
+            <div id="inSpaceListContainer" class="space-y-1 max-h-60 overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- МОДАЛЬНЕ ВІКНО ВИХОДУ В СЕКТОР ДЛЯ МАЙСТРА -->
+  <div id="gmExitModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-[#121722] border border-slate-700 p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-slate-100">⬅️ Повернення у Сектор</h3>
+        <button onclick="closeGmExitModal()" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+      <p class="text-xs text-slate-400 leading-relaxed">Ви в режимі Майстра. Оберіть спосіб виходу з тактичного столу:</p>
+      <div class="space-y-2">
+        <button onclick="executeReturnToSector(true)" class="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition flex items-center justify-center gap-2">
+          <span>📡</span> <span>Повернути всю групу в Сектор (MQTT)</span>
+        </button>
+        <button onclick="executeReturnToSector(false)" class="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2">
+          <span>🚶</span> <span>Вийти самому</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script id="embedded-zona-state" type="application/json">{}</script>
+
+  <script>
+    // =========================================================================
+    // 1. СЛОВНИК ПЕРЕКЛАДУ ТА ІКОНОК ДЛЯ ВСІХ ХАРАКТЕРИСТИК І НАВИЧОК ЛИСТА
+    // =========================================================================
+    const VITRUVIA_DIE_FACES = [
+      { type: 'empty', points: 0 },
+      { type: 'empty', points: 0 },
+      { type: 'empty', points: 0 },
+      { type: 'half',  points: 1 },
+      { type: 'half',  points: 1 },
+      { type: 'full',  points: 2 }
+    ];
+
+    // Повний мапінг ключів характеристик (англійські, скорочені та українські) -> Українська назва + Іконка
+    const STAT_DICTIONARY = {
+      strength:     { name: 'Сила',          icon: '💪' },
+      str:          { name: 'Сила',          icon: '💪' },
+      сила:         { name: 'Сила',          icon: '💪' },
+      міць:         { name: 'Міць',          icon: '💪' },
+      power:        { name: 'Міць',          icon: '💪' },
+      body:         { name: 'Тілобудова',    icon: '🛡️' },
+      physique:     { name: 'Тілобудова',    icon: '🛡️' },
+      constitution: { name: 'Тілобудова',    icon: '🛡️' },
+      con:          { name: 'Тілобудова',    icon: '🛡️' },
+      тілобудова:   { name: 'Тілобудова',    icon: '🛡️' },
+      тіло:         { name: 'Тіло',          icon: '🛡️' },
+      статура:      { name: 'Статура',       icon: '🛡️' },
+      agility:      { name: 'Спритність',    icon: '⚡' },
+      dexterity:    { name: 'Спритність',    icon: '⚡' },
+      dex:          { name: 'Спритність',    icon: '⚡' },
+      agi:          { name: 'Спритність',    icon: '⚡' },
+      спритність:   { name: 'Спритність',    icon: '⚡' },
+      ловкість:     { name: 'Спритність',    icon: '⚡' },
+      reflex:       { name: 'Реакція',       icon: '💨' },
+      reflexes:     { name: 'Рефлеки',       icon: '💨' },
+      reaction:     { name: 'Реакція',       icon: '💨' },
+      speed:        { name: 'Швидкість',     icon: '💨' },
+      реакція:      { name: 'Реакція',       icon: '💨' },
+      швидкість:    { name: 'Швидкість',     icon: '💨' },
+      wellbeing:    { name: 'Самопочуття',   icon: '❤️' },
+      endurance:    { name: 'Витривалість',  icon: '❤️' },
+      vitality:     { name: 'Життєстійкість',icon: '❤️' },
+      stamina:      { name: 'Витривалість',  icon: '❤️' },
+      fortitude:    { name: 'Стійкість',     icon: '❤️' },
+      самопочуття:  { name: 'Самопочуття',   icon: '❤️' },
+      витривалість: { name: 'Витривалість',  icon: '❤️' },
+      стійкість:    { name: 'Стійкість',     icon: '❤️' },
+      combat:       { name: 'Бій',           icon: '⚔️' },
+      fight:        { name: 'Бій',           icon: '⚔️' },
+      fighting:     { name: 'Бій',           icon: '⚔️' },
+      melee:        { name: 'Ближній бій',   icon: '⚔️' },
+      attack:       { name: 'Атака',         icon: '⚔️' },
+      бій:          { name: 'Бій',           icon: '⚔️' },
+      shooting:     { name: 'Стрільба',      icon: '🎯' },
+      ranged:       { name: 'Стрільба',      icon: '🎯' },
+      accuracy:     { name: 'Влучність',     icon: '🎯' },
+      aim:          { name: 'Влучність',     icon: '🎯' },
+      marksmanship: { name: 'Стрільба',      icon: '🎯' },
+      стрільба:     { name: 'Стрільба',      icon: '🎯' },
+      влучність:    { name: 'Влучність',     icon: '🎯' },
+      perception:   { name: 'Сприйняття',    icon: '👁️' },
+      per:          { name: 'Сприйняття',    icon: '👁️' },
+      awareness:    { name: 'Уважність',     icon: '👁️' },
+      senses:       { name: 'Чуття',         icon: '👁️' },
+      intuition:    { name: 'Інтуїція',      icon: '👁️' },
+      сприйняття:   { name: 'Сприйняття',    icon: '👁️' },
+      увага:        { name: 'Увага',         icon: '👁️' },
+      інтуїція:     { name: 'Інтуїція',      icon: '👁️' },
+      intellect:    { name: 'Інтелект',      icon: '🧠' },
+      intelligence: { name: 'Інтелект',      icon: '🧠' },
+      int:          { name: 'Інтелект',      icon: '🧠' },
+      mind:         { name: 'Розум',         icon: '🧠' },
+      logic:        { name: 'Логіка',        icon: '🧠' },
+      reason:       { name: 'Розум',         icon: '🧠' },
+      інтелект:     { name: 'Інтелект',      icon: '🧠' },
+      розум:        { name: 'Розум',         icon: '🧠' },
+      логіка:       { name: 'Логіка',        icon: '🧠' },
+      willpower:    { name: 'Воля',          icon: '💠' },
+      will:         { name: 'Воля',          icon: '💠' },
+      wisdom:       { name: 'Мудрість',      icon: '💠' },
+      wis:          { name: 'Воля',          icon: '💠' },
+      spirit:       { name: 'Дух',           icon: '💠' },
+      psyche:       { name: 'Психіка',       icon: '💠' },
+      resolve:      { name: 'Рішучість',     icon: '💠' },
+      sanity:       { name: 'Розсудливість', icon: '💠' },
+      воля:         { name: 'Воля',          icon: '💠' },
+      сила_волі:    { name: 'Сила волі',     icon: '💠' },
+      дух:          { name: 'Дух',           icon: '💠' },
+      психіка:      { name: 'Психіка',       icon: '💠' },
+      charisma:     { name: 'Харизма',       icon: '🗣️' },
+      cha:          { name: 'Харизма',       icon: '🗣️' },
+      social:       { name: 'Соціальність',  icon: '🗣️' },
+      influence:    { name: 'Вплив',         icon: '🗣️' },
+      empathy:      { name: 'Емпатія',       icon: '🗣️' },
+      presence:     { name: 'Присутність',   icon: '🗣️' },
+      харизма:      { name: 'Харизма',       icon: '🗣️' },
+      вплив:        { name: 'Вплив',         icon: '🗣️' },
+      емпатія:      { name: 'Емпатія',       icon: '🗣️' },
+      спілкування:  { name: 'Спілкування',   icon: '🗣️' },
+      tech:         { name: 'Техніка',       icon: '🔧' },
+      technology:   { name: 'Технології',    icon: '🔧' },
+      engineering:  { name: 'Інженерія',     icon: '🔧' },
+      mechanics:    { name: 'Механіка',      icon: '🔧' },
+      craft:        { name: 'Ремесло',       icon: '🔧' },
+      техніка:      { name: 'Техніка',       icon: '🔧' },
+      інженерія:    { name: 'Інженерія',     icon: '🔧' },
+      ремесло:      { name: 'Ремесло',       icon: '🔧' },
+      механіка:     { name: 'Механіка',      icon: '🔧' },
+      medicine:     { name: 'Медицина',      icon: '💉' },
+      med:          { name: 'Медицина',      icon: '💉' },
+      healing:      { name: 'Лікування',     icon: '💉' },
+      biology:      { name: 'Біологія',      icon: '💉' },
+      медицина:     { name: 'Медицина',      icon: '💉' },
+      біологія:     { name: 'Біологія',      icon: '💉' },
+      stealth:      { name: 'Прихованість',  icon: '🕶️' },
+      sneak:        { name: 'Прихованість',  icon: '🕶️' },
+      infiltration: { name: 'Проникнення',   icon: '🕶️' },
+      прихованість: { name: 'Прихованість',  icon: '🕶️' },
+      скритість:    { name: 'Прихованість',  icon: '🕶️' },
+      survival:     { name: 'Виживання',     icon: '🧭' },
+      виживання:    { name: 'Виживання',     icon: '🧭' },
+      science:      { name: 'Наука',         icon: '📚' },
+      knowledge:    { name: 'Знання',        icon: '📚' },
+      lore:         { name: 'Знання',        icon: '📚' },
+      знання:       { name: 'Знання',        icon: '📚' },
+      наука:        { name: 'Наука',         icon: '📚' },
+      luck:         { name: 'Удача',         icon: '🍀' },
+      fortune:      { name: 'Удача',         icon: '🍀' },
+      удача:        { name: 'Удача',         icon: '🍀' },
+      entropy:      { name: 'Ентропія',      icon: '🌀' },
+      resonance:    { name: 'Резонанс',      icon: '🌀' },
+      aether:       { name: 'Ефір',          icon: '🌀' },
+      magic:        { name: 'Містика',       icon: '✨' },
+      ентропія:     { name: 'Ентропія',      icon: '🌀' },
+      резонанс:     { name: 'Резонанс',      icon: '🌀' }
+    };
+
+    // Словник перекладу англійських ключів навичок (якщо лист передає ключі англійською)
+    const SKILL_NAME_TRANSLATIONS = {
+      athletics: 'Атлетика', acrobatics: 'Акробатика', melee: 'Ближній бій',
+      brawl: 'Рукопашний бій', martial: 'Бойові мистецтва', shooting: 'Стрільба',
+      firearms: 'Вогнепальна зброя', heavy_weapons: 'Важка зброя', stealth: 'Прихованість',
+      sleight_of_hand: 'Спритність рук', thievery: 'Злом', hacking: 'Хакінг',
+      computers: 'Комп\'ютери', electronics: 'Електроніка', mechanics: 'Механіка',
+      engineering: 'Інженерія', craft: 'Ремесло', medicine: 'Медицина',
+      first_aid: 'Перша допомога', biology: 'Біологія', survival: 'Виживання',
+      navigation: 'Навігація', perception: 'Спостережливість', investigation: 'Розслідування',
+      insight: 'Проникливість', persuasion: 'Переконання', deception: 'Обман',
+      intimidation: 'Залякування', leadership: 'Лідерство', lore: 'Знання Ковчега',
+      science: 'Наука', history: 'Історія', occult: 'Окультизм', entropy: 'Контроль Ентропії',
+      piloting: 'Пілотування', driving: 'Водіння', defense: 'Захист', dodge: 'Ухилення',
+      parry: 'Парування', willpower: 'Сила волі', endurance: 'Витривалість'
+    };
+
+    function resolveStatMeta(rawKey, rawLabel, rawIcon) {
+      const cleanKey = String(rawKey || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+      const cleanLabel = String(rawLabel || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+      const match = STAT_DICTIONARY[cleanKey] || STAT_DICTIONARY[cleanLabel];
+
+      // Якщо передана власна українська назва — зберігаємо її, але перекладаємо якщо це англійський ключ
+      let finalName = rawLabel || rawKey || 'Характеристика';
+      if (match && (!rawLabel || /^[a-z0-9_-]+$/i.test(String(rawLabel)))) {
+        finalName = match.name;
+      } else if (SKILL_NAME_TRANSLATIONS[cleanKey]) {
+        finalName = SKILL_NAME_TRANSLATIONS[cleanKey];
+      }
+
+      // Автоматичний підбір іконки за ключем або змістом назви
+      let finalIcon = rawIcon || (match ? match.icon : null);
+      if (!finalIcon) {
+        const text = (cleanKey + ' ' + cleanLabel).toLowerCase();
+        if (text.includes('сил') || text.includes('str') || text.includes('міц')) finalIcon = '💪';
+        else if (text.includes('бій') || text.includes(' ата') || text.includes('comb') || text.includes(' збр')) finalIcon = '⚔️';
+        else if (text.includes('стріл') || text.includes('влуч') || text.includes('shoot') || text.includes('rang')) finalIcon = '🎯';
+        else if (text.includes('сприт') || text.includes('ловк') || text.includes('agi') || text.includes('dex')) finalIcon = '⚡';
+        else if (text.includes('тіл') || text.includes('захис') || text.includes('брон') || text.includes('body')) finalIcon = '🛡️';
+        else if (text.includes('самоп') || text.includes('витp') || text.includes('здор') || text.includes('well')) finalIcon = '❤️';
+        else if (text.includes('сприй') || text.includes('уваг') || text.includes('зір') || text.includes('perc')) finalIcon = '👁️';
+        else if (text.includes('інт') || text.includes('розум') || text.includes('лог') || text.includes('int')) finalIcon = '🧠';
+        else if (text.includes('тех') || text.includes('інж') || text.includes('мех') || text.includes('рем')) finalIcon = '🔧';
+        else if (text.includes('мед') || text.includes('лік') || text.includes('біо')) finalIcon = '💉';
+        else if (text.includes('прих') || text.includes('скрит') || text.includes('тінь')) finalIcon = '🕶️';
+        else if (text.includes('хариз') || text.includes('соц') || text.includes('мов') || text.includes('вплив')) finalIcon = '🗣️';
+        else if (text.includes('реак') || text.includes('швид') || text.includes('рух')) finalIcon = '💨';
+        else if (text.includes('удач') || text.includes('дол') || text.includes('шанс')) finalIcon = '🍀';
+        else if (text.includes('вол') || text.includes('дух') || text.includes('псих')) finalIcon = '💠';
+        else finalIcon = '💠';
+      }
+
+      return { name: finalName, icon: finalIcon };
+    }
+
+    function translateSkillName(rawName) {
+      const clean = String(rawName || '').trim();
+      const key = clean.toLowerCase().replace(/[\s-]+/g, '_');
+      return SKILL_NAME_TRANSLATIONS[key] || STAT_DICTIONARY[key]?.name || clean;
+    }
+
+    // Базовий резерв характеристик (використовується лише якщо Лист Персонажа ще взагалі не відкривався)
+    const FALLBACK_STATS = [
+      { key: 'combat',     name: 'Бій',          icon: '⚔️', value: 3 },
+      { key: 'shooting',   name: 'Стрільба',     icon: '🎯', value: 3 },
+      { key: 'agility',    name: 'Спритність',   icon: '⚡', value: 3 },
+      { key: 'body',       name: 'Тілобудова',   icon: '🛡️', value: 3 },
+      { key: 'wellbeing',  name: 'Самопочуття',  icon: '❤️', value: 3 },
+      { key: 'perception', name: 'Сприйняття',   icon: '👁️', value: 3 },
+      { key: 'intellect',  name: 'Інтелект',     icon: '🧠', value: 3 },
+      { key: 'tech',       name: 'Техніка',      icon: '🔧', value: 2 },
+      { key: 'willpower',  name: 'Воля',         icon: '💠', value: 3 }
+    ];
+
+    // Ініціалізація моста window.EntropiaBridge
+    (function ensureEntropiaBridge() {
+      const params = new URLSearchParams(window.location.search);
+      const defaultBridge = {
+        _gmOverride: null,
+        isGM() {
+          if (typeof this._gmOverride === 'boolean') return this._gmOverride;
+          const rawRole = params.get('role') || sessionStorage.getItem('entropia_user_role') || localStorage.getItem('entropia_user_role') || 'player';
+          return ['gm', 'master', 'admin', 'майстер'].includes(String(rawRole).toLowerCase());
+        },
+        getCharacter() {
+          let stored = {};
+          try {
+            const keysToTry = [
+              'entropia_character_sheet',
+              'entropia_active_character',
+              'vitruvia_character_sheet',
+              'character_sheet',
+              'entropia_char_data'
+            ];
+            for (const k of keysToTry) {
+              const raw = localStorage.getItem(k) || sessionStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object') {
+                  stored = Object.assign(stored, parsed);
+                }
+              }
+            }
+          } catch (e) {}
+
+          const isMaster = this.isGM();
+          return Object.assign({
+            name: params.get('char') || stored.name || stored.charName || sessionStorage.getItem('entropia_char_name') || localStorage.getItem('entropia_char_name') || (isMaster ? 'Архітектор' : 'Дослідник'),
+            avatar: params.get('avatar') || stored.avatar || stored.avatarUrl || stored.image || null,
+            hp: stored.hp || stored.health || '100/100',
+            shield: stored.shield || stored.armor || '20'
+          }, stored);
+        },
+        verifyAdminPassword(pwd) {
+          if (!pwd) return false;
+          return ['ентропія', 'entropia', 'admin', 'вавилонія'].includes(String(pwd).trim().toLowerCase());
+        },
+        rollVitruvia(options = {}) {
+          const poolCount = Math.max(1, Math.min(25, Number(options.pool || options.diceCount || 3)));
+          const faces = [];
+          let totalPoints = 0, fullCount = 0, halfCount = 0, emptyCount = 0;
+          for (let i = 0; i < poolCount; i++) {
+            const f = VITRUVIA_DIE_FACES[Math.floor(Math.random() * 6)];
+            faces.push(f);
+            totalPoints += f.points;
+            if (f.type === 'full') fullCount++;
+            else if (f.type === 'half') halfCount++;
+            else emptyCount++;
+          }
+          return { poolCount, totalPoints, fullCount, halfCount, emptyCount, faces };
+        }
+      };
+
+      if (!window.EntropiaBridge) {
+        window.EntropiaBridge = defaultBridge;
+      } else {
+        if (typeof window.EntropiaBridge.isGM !== 'function') window.EntropiaBridge.isGM = defaultBridge.isGM.bind(defaultBridge);
+        if (typeof window.EntropiaBridge.getCharacter !== 'function') window.EntropiaBridge.getCharacter = defaultBridge.getCharacter.bind(defaultBridge);
+        if (typeof window.EntropiaBridge.verifyAdminPassword !== 'function') window.EntropiaBridge.verifyAdminPassword = defaultBridge.verifyAdminPassword.bind(defaultBridge);
+        if (typeof window.EntropiaBridge.rollVitruvia !== 'function') window.EntropiaBridge.rollVitruvia = defaultBridge.rollVitruvia.bind(defaultBridge);
+      }
+    })();
+
+    // =========================================================================
+    // 2. РЕНДЕР ГРАНЕЙ КУБИКІВ ЗІ ЗНАКОМ ПАРТІЇ 💠 (БЕЗ ЦИФР)
+    // =========================================================================
+    function renderVitruviaDieFaceSVG(faceType, index = 0) {
+      const delayMs = index * 35;
+      if (faceType === 'full') {
+        return `
+          <div style="animation-delay: ${delayMs}ms"
+               class="vitruvia-die-anim w-12 h-12 rounded-xl bg-emerald-950/85 border-2 border-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.5)] flex items-center justify-center relative"
+               title="Повний знак 💠 (2 очки)">
+            <span class="text-2xl leading-none drop-shadow-[0_0_8px_rgba(34,211,238,0.95)] select-none">💠</span>
+          </div>
+        `;
+      } else if (faceType === 'half') {
+        return `
+          <div style="animation-delay: ${delayMs}ms"
+               class="vitruvia-die-anim w-12 h-12 rounded-xl bg-cyan-950/80 border-2 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.35)] flex items-center justify-center relative overflow-hidden"
+               title="Пів знака 💠 (1 очко)">
+            <span class="text-2xl leading-none opacity-15 grayscale select-none absolute">💠</span>
+            <span class="text-2xl leading-none drop-shadow-[0_0_6px_rgba(34,211,238,0.85)] half-party-symbol select-none relative z-10">💠</span>
+            <div class="absolute inset-y-1.5 left-1/2 -translate-x-1/2 w-px border-l border-dashed border-cyan-300/80 z-20"></div>
+          </div>
+        `;
+      } else {
+        return `
+          <div style="animation-delay: ${delayMs}ms"
+               class="vitruvia-die-anim w-12 h-12 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center relative opacity-60"
+               title="Пуста грань (0 очок)">
+            <svg class="w-6 h-6 text-slate-700" viewBox="0 0 40 40" fill="none">
+              <rect x="11" y="11" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" transform="rotate(45 20 20)" />
+            </svg>
+          </div>
+        `;
+      }
+    }
+
+    function performCanonicalVitruviaRoll(poolCount, statName, skillName) {
+      let bridgeRes = null;
+      try {
+        bridgeRes = window.EntropiaBridge.rollVitruvia({
+          pool: poolCount,
+          diceCount: poolCount,
+          statName,
+          skillName,
+          character: activeCharacter
+        });
+      } catch (e) {}
+
+      if (bridgeRes && Array.isArray(bridgeRes.faces) && bridgeRes.faces.length === poolCount) {
+        return bridgeRes;
+      }
+
+      const faces = [];
+      let totalPoints = 0, fullCount = 0, halfCount = 0, emptyCount = 0;
+      for (let i = 0; i < poolCount; i++) {
+        const f = VITRUVIA_DIE_FACES[Math.floor(Math.random() * 6)];
+        faces.push(f);
+        totalPoints += f.points;
+        if (f.type === 'full') fullCount++;
+        else if (f.type === 'half') halfCount++;
+        else emptyCount++;
+      }
+      return { poolCount, totalPoints, fullCount, halfCount, emptyCount, faces, statName, skillName };
+    }
+
+    // =========================================================================
+    // 3. MQTT ТОПІКИ ТА КАТАЛОГ ОБ'ЄКТІВ
+    // =========================================================================
+    const MQTT_BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
+    const MQTT_TOPIC_COMMAND = 'entropia_ark_317/group_command_v4';
+    const MQTT_TOPIC_ZONA_SYNC = 'entropia_ark_317/zona_tabletop_v1';
+    const MQTT_TOPIC_DICE_SYNC = 'entropia_ark_317/vitruvia_dice_v1';
+
+    const clientId = 'entropia_zona_' + Math.random().toString(36).substring(2, 9);
+    const COORD_LETTERS = ['А','Б','В','Г','Д','Е','Ж','З','И','К','Л','М','Н','О','П','Р','С','Т','У','Ф','Х','Ц','Ч','Ш','Щ','Ю','Я','АА','АБ','АВ','АГ','АД'];
+
+    const READY_ENVIRONMENT_CATALOG = [
+      { id: 'obj_babylon_container', name: 'Контейнер Вавилонії', icon: '🗄️', category: 'general', kind: 'object', cells: 2, color: '#22d3ee', hp: '200/200', shield: '30' },
+      { id: 'obj_comm_terminal', name: 'Термінал зв\'язку', icon: '🖥️', category: 'general', kind: 'object', cells: 1, color: '#10b981', hp: '75/75', shield: '20' },
+      { id: 'obj_barricade', name: 'Барикада', icon: '🚧', category: 'general', kind: 'object', cells: 1, color: '#f59e0b', hp: '110/110', shield: '0' },
+      { id: 'obj_automaton_station', name: 'Станція автоматона', icon: '⚡', category: 'general', kind: 'object', cells: 1, color: '#38bdf8', hp: '140/140', shield: '40' },
+      { id: 'obj_rock_debris', name: 'Завал каміння', icon: '🪨', category: 'general', kind: 'object', cells: 2, color: '#64748b', hp: '160/160', shield: '0' },
+      { id: 'obj_stasis_pod', name: 'Стазис-капсула', icon: '🧪', category: 'general', kind: 'object', cells: 1, color: '#a855f7', hp: '95/95', shield: '50' },
+      { id: 'tok_automaton', name: 'Автоматон', icon: '🤖', category: 'general', kind: 'token', cells: 1, color: '#38bdf8', hp: '80/80', shield: '30', isNpc: true },
+      { id: 'tok_predator', name: 'Хижак Скверни', icon: '☣️', category: 'general', kind: 'token', cells: 1, color: '#f43f5e', hp: '110/110', shield: '0', isNpc: true },
+      { id: 'tok_boss', name: 'Вартовий / Бос', icon: '🛡️', category: 'general', kind: 'token', cells: 2, color: '#f59e0b', hp: '260/260', shield: '80', isNpc: true },
+      { id: 'tok_npc', name: 'НПС Ковчега', icon: '👤', category: 'general', kind: 'token', cells: 1, color: '#10b981', hp: '60/60', shield: '10', isNpc: true }
+    ];
+
+    let personalCatalog = [];
+
+    function createFloorLayer(id, name) {
+      return { id, name, zones: [], walls: {}, vectorWalls: [], hazards: {}, fog: {}, entities: [] };
+    }
+
+    let state = {
+      title: 'Ігровий стіл: Центральний Купольний Дендрарій',
+      notes: 'Тактичний квадрат у Секторі I.',
+      sectorId: 1,
+      sectorName: 'Карантинні Сади',
+      subzone: { code: 'ПІДЗОНА I-D', name: 'Центральний Купольний Дендрарій' },
+      worldBounds: { sizeKm: 2.45 },
+      cellMeters: 1.5,
+      grid: { count: 14, offsetX: 0, offsetY: 0, padding: 28, opacity: 0.35, show: true },
+      bg: { dataUrl: null, mqttDataUrl: null, brightness: 100, contrast: 100 },
+      currentFloorIndex: 0,
+      floors: [createFloorLayer(1, 'Основний рівень')],
+      diceLog: []
+    };
+
+    let isGM = false;
+    let activeCharacter = { name: 'Дослідник', avatar: null, hp: '100/100', shield: '20' };
+    let characterStatsList = [];
+    let characterSkillsList = [{ name: 'Без навички', bonus: 0 }];
+
+    let selectedStatIndex = 0;
+    let selectedSkillIndex = 0;
+    let manualDiceModifier = 0;
+    let currentFinalPool = 3;
+
+    let activeSpaceMode = 'grid';
+    let activeTool = 'select';
+    let activeHazardType = 'spores';
+    let activeZoneColor = '#10b981';
+    let activeCatalogTab = 'general';
+
+    let leftSidebarVisible = true;
+    let rightSidebarVisible = true;
+
+    const BOARD_BASE_PX = 840;
+    let camera = { x: 0, y: 0, zoom: 1 };
+    let isPanning = false;
+    let panStart = { x: 0, y: 0 };
+    let selectedEntityId = null;
+    let isDraggingEntity = false;
+    let isPaintingCells = false;
+    let zoneDragStart = null;
+    let zoneDragCurrent = null;
+    let vectorWallStart = null;
+    let vectorWallCurrent = null;
+    let rulerStart = null;
+    let rulerEnd = null;
+
+    let bgImageElement = null;
+    const imageElementCache = {};
+
+    const canvas = document.getElementById('tacticalCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // =========================================================================
+    // 4. ТОЧНЕ ЗЧИТУВАННЯ ЛИСТА ПЕРСОНАЖА (ХАРАКТЕРИСТИКИ + РЕАЛЬНІ НАВИЧКИ)
+    // =========================================================================
+    function initZonaApp() {
+      isGM = Boolean(window.EntropiaBridge.isGM());
+      refreshCharacterFromBridge(false);
+
+      try {
+        const embeddedRaw = document.getElementById('embedded-zona-state')?.textContent;
+        if (embeddedRaw && embeddedRaw.trim().length > 5) {
+          const parsed = JSON.parse(embeddedRaw);
+          if (parsed && parsed.floors) state = Object.assign(state, parsed);
+        }
+      } catch (e) {}
+
+      const payload = readZonaPayload();
+      if (payload) {
+        if (payload.title) state.title = payload.title;
+        if (payload.notes) state.notes = payload.notes;
+        if (payload.sectorId) state.sectorId = payload.sectorId;
+        if (payload.sectorName) state.sectorName = payload.sectorName;
+        if (payload.subzone) state.subzone = payload.subzone;
+        if (payload.worldBounds?.sizeKm) state.worldBounds = payload.worldBounds;
+
+        const bgSrc = payload.screenshotDataUrl || payload.mqttScreenshotDataUrl;
+        if (bgSrc) {
+          state.bg.dataUrl = bgSrc;
+          state.bg.mqttDataUrl = payload.mqttScreenshotDataUrl || bgSrc;
+        }
+      }
+
+      if (state.bg.dataUrl) loadBackgroundDataUrl(state.bg.dataUrl);
+
+      const firstFloor = getCurrentFloor();
+      if (firstFloor.zones.length === 0 && firstFloor.entities.length === 0) {
+        firstFloor.zones.push({ x1: 1, y1: 1, x2: 4, y2: 3, label: 'Посадочна зона', color: '#10b981' });
+      }
+
+      applyRoleAndCharacterUI();
+      syncSlidersWithState();
+      renderCatalogItems();
+      renderInSpaceList();
+      renderDiceLog();
+
+      setupCanvasListeners();
+      setupDraggableVitruviaModal();
+      setupCrossTabCharacterSync();
+
+      resizeCanvas();
+      resetCameraAndZoom();
+      window.addEventListener('resize', resizeCanvas);
+      initMqttConnection();
+      requestRender();
+    }
+
+    function refreshCharacterFromBridge(showToast = false) {
+      let rawChar = {};
+      try {
+        rawChar = window.EntropiaBridge.getCharacter() || {};
+      } catch (e) {}
+
+      // Якщо об'єкт персонажа загорнутий у поле character або data
+      if (rawChar.character && typeof rawChar.character === 'object') {
+        rawChar = Object.assign({}, rawChar, rawChar.character);
+      }
+      if (rawChar.data && typeof rawChar.data === 'object') {
+        rawChar = Object.assign({}, rawChar, rawChar.data);
+      }
+
+      activeCharacter = Object.assign(activeCharacter, rawChar);
+
+      const extractedStats = [];
+      const extractedSkills = [{ name: 'Без навички', bonus: 0 }];
+
+      // Допоміжна функція для додавання реальної навички з Листа Персонажа
+      const pushRealSkill = (rawSkillName, rawBonus) => {
+        if (!rawSkillName) return;
+        const cleanName = translateSkillName(rawSkillName);
+        if (!cleanName || cleanName.toLowerCase() === 'без навички') return;
+        const bonusVal = Number(rawBonus ?? 0);
+        // Не дублюємо однакові навички
+        if (!extractedSkills.some(s => s.name.toLowerCase() === cleanName.toLowerCase())) {
+          extractedSkills.push({ name: cleanName, bonus: isNaN(bonusVal) ? 1 : bonusVal });
+        }
+      };
+
+      // 1. Зчитуємо характеристики з усіх можливих полів Листа Персонажа
+      const rawStatsSource =
+        rawChar.stats ||
+        rawChar.attributes ||
+        rawChar.characteristics ||
+        rawChar.statList ||
+        rawChar.params ||
+        rawChar.характеристики;
+
+      if (Array.isArray(rawStatsSource) && rawStatsSource.length > 0) {
+        rawStatsSource.forEach((st, idx) => {
+          if (!st) return;
+          const rawKey = st.key || st.id || st.code || st.name || `stat_${idx}`;
+          const rawLabel = st.name || st.label || st.title || rawKey;
+          const meta = resolveStatMeta(rawKey, rawLabel, st.icon);
+          const val = Number(st.value ?? st.level ?? st.dice ?? st.score ?? st.base ?? 1);
+          extractedStats.push({
+            key: String(rawKey).toLowerCase(),
+            name: meta.name,
+            icon: meta.icon,
+            value: isNaN(val) ? 1 : Math.max(0, val)
+          });
+
+          // Якщо всередині характеристики в Листі є вкладені навички — зчитуємо і їх
+          if (Array.isArray(st.skills)) {
+            st.skills.forEach(sk => {
+              if (typeof sk === 'string') pushRealSkill(sk, 1);
+              else if (sk && typeof sk === 'object') pushRealSkill(sk.name || sk.label || sk.title, sk.bonus ?? sk.value ?? sk.level ?? 1);
+            });
+          } else if (st.skills && typeof st.skills === 'object') {
+            Object.entries(st.skills).forEach(([skK, skV]) => {
+              if (typeof skV === 'number') pushRealSkill(skK, skV);
+              else if (skV && typeof skV === 'object') pushRealSkill(skV.name || skV.label || skK, skV.bonus ?? skV.value ?? skV.level ?? 0);
+            });
+          }
+        });
+      } else if (rawStatsSource && typeof rawStatsSource === 'object') {
+        Object.entries(rawStatsSource).forEach(([k, v]) => {
+          if (v === null || v === undefined) return;
+          if (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)))) {
+            const meta = resolveStatMeta(k, null, null);
+            extractedStats.push({
+              key: k.toLowerCase(),
+              name: meta.name,
+              icon: meta.icon,
+              value: Math.max(0, Number(v))
+            });
+          } else if (typeof v === 'object') {
+            const meta = resolveStatMeta(k, v.name || v.label || v.title, v.icon);
+            const val = Number(v.value ?? v.level ?? v.dice ?? v.score ?? v.base ?? 1);
+            extractedStats.push({
+              key: k.toLowerCase(),
+              name: meta.name,
+              icon: meta.icon,
+              value: isNaN(val) ? 1 : Math.max(0, val)
+            });
+            if (Array.isArray(v.skills)) {
+              v.skills.forEach(sk => {
+                if (typeof sk === 'string') pushRealSkill(sk, 1);
+                else if (sk && typeof sk === 'object') pushRealSkill(sk.name || sk.label || sk.title, sk.bonus ?? sk.value ?? sk.level ?? 1);
+              });
+            } else if (v.skills && typeof v.skills === 'object') {
+              Object.entries(v.skills).forEach(([skK, skV]) => {
+                if (typeof skV === 'number') pushRealSkill(skK, skV);
+                else if (skV && typeof skV === 'object') pushRealSkill(skV.name || skV.label || skK, skV.bonus ?? skV.value ?? skV.level ?? 0);
+              });
+            }
+          }
+        });
+      }
+
+      // Якщо характеристики лежать прямо в корені об'єкта персонажа
+      if (extractedStats.length === 0) {
+        Object.entries(rawChar).forEach(([k, v]) => {
+          const cleanK = k.toLowerCase().trim();
+          if (['id', 'hp', 'shield', 'armor', 'level', 'exp', 'xp', 'age', 'sector', 'sectorid'].includes(cleanK)) return;
+          if (STAT_DICTIONARY[cleanK] && (typeof v === 'number' || (typeof v === 'string' && !isNaN(Number(v))))) {
+            const meta = STAT_DICTIONARY[cleanK];
+            extractedStats.push({
+              key: cleanK,
+              name: meta.name,
+              icon: meta.icon,
+              value: Math.max(0, Number(v))
+            });
+          }
+        });
+      }
+
+      characterStatsList = extractedStats.length > 0
+        ? extractedStats
+        : JSON.parse(JSON.stringify(FALLBACK_STATS));
+
+      // 2. Зчитуємо тільки реальні навички з Листа Персонажа (skills / навички / abilities / talents / perks)
+      const rawSkillsSource =
+        rawChar.skills ||
+        rawChar.навички ||
+        rawChar.skillList ||
+        rawChar.proficiencies ||
+        rawChar.abilities ||
+        rawChar.talents;
+
+      if (Array.isArray(rawSkillsSource)) {
+        rawSkillsSource.forEach(sk => {
+          if (!sk) return;
+          if (typeof sk === 'string') {
+            pushRealSkill(sk, 1);
+          } else if (typeof sk === 'object') {
+            const b = sk.bonus ?? sk.value ?? sk.level ?? sk.mod ?? sk.modifier ?? sk.rank ?? 1;
+            pushRealSkill(sk.name || sk.label || sk.title || sk.key, b);
+          }
+        });
+      } else if (rawSkillsSource && typeof rawSkillsSource === 'object') {
+        Object.entries(rawSkillsSource).forEach(([k, v]) => {
+          if (v === null || v === undefined || v === false) return;
+          if (v === true) {
+            pushRealSkill(k, 1);
+          } else if (typeof v === 'number' || (typeof v === 'string' && !isNaN(Number(v)))) {
+            pushRealSkill(k, Number(v));
+          } else if (typeof v === 'object') {
+            const b = v.bonus ?? v.value ?? v.level ?? v.mod ?? v.modifier ?? v.rank ?? 0;
+            pushRealSkill(v.name || v.label || v.title || k, b);
+          }
+        });
+      }
+
+      // Жодних вигаданих навичок — залишаємо тільки те, що прийшло з Листа Персонажа
+      characterSkillsList = extractedSkills;
+
+      if (selectedStatIndex >= characterStatsList.length) selectedStatIndex = 0;
+      if (selectedSkillIndex >= characterSkillsList.length) selectedSkillIndex = 0;
+
+      renderVitruviaSheetControls();
+      renderPlayerSidebarSheet();
+      if (showToast) {
+        document.getElementById('vitruviaCharNameLabel').textContent = `${activeCharacter.name} ✓`;
+      }
+    }
+
+    function setupCrossTabCharacterSync() {
+      window.addEventListener('storage', (e) => {
+        if (e.key && (e.key.includes('character') || e.key.includes('entropia') || e.key.includes('vitruvia') || e.key.includes('char'))) {
+          refreshCharacterFromBridge(true);
+          applyRoleAndCharacterUI();
+        }
+      });
+      window.addEventListener('message', (e) => {
+        if (e.data && (e.data.type === 'ENTROPIA_CHAR_SYNC' || e.data.stats || e.data.charName || e.data.name)) {
+          try {
+            localStorage.setItem('entropia_character_sheet', JSON.stringify(e.data.payload || e.data));
+            refreshCharacterFromBridge(true);
+            applyRoleAndCharacterUI();
+          } catch (err) {}
+        }
+      });
+    }
+
+    // =========================================================================
+    // 5. СТІЛ КУБИКІВ «ВІТРУВІЯ» (ХАРАКТЕРИСТИКИ, НАВИЧКИ З ЛИСТА, КИДОК 💠)
+    // =========================================================================
+    function renderVitruviaSheetControls() {
+      document.getElementById('vitruviaCharNameLabel').textContent = activeCharacter.name || 'Дослідник';
+
+      const statsGrid = document.getElementById('vitruviaStatsGrid');
+      statsGrid.innerHTML = characterStatsList.map((st, idx) => {
+        const isSelected = idx === selectedStatIndex;
+        return `
+          <button onclick="selectVitruviaStat(${idx})"
+                  class="${isSelected ? 'stat-card-active' : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'} p-2 rounded-xl border transition flex items-center justify-between text-left gap-1">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <span class="text-sm shrink-0">${st.icon}</span>
+              <span class="text-[11px] font-medium text-slate-200 truncate" title="${st.name}">${st.name}</span>
+            </div>
+            <span class="px-1.5 py-0.5 rounded bg-slate-950 font-mono-tech font-bold text-emerald-400 text-xs shrink-0">${st.value}</span>
+          </button>
+        `;
+      }).join('');
+
+      const skillsRow = document.getElementById('vitruviaSkillsRow');
+      if (characterSkillsList.length <= 1) {
+        skillsRow.innerHTML = `
+          <button onclick="selectVitruviaSkill(0)" class="skill-chip-active px-2.5 py-1 rounded-lg border text-[11px] font-medium">
+            Без навички (+0)
+          </button>
+          <span class="text-[10px] text-slate-500 self-center pl-1">Активні навички з Листа підтягуються сюди автоматично</span>
+        `;
+      } else {
+        skillsRow.innerHTML = characterSkillsList.map((sk, idx) => {
+          const isSelected = idx === selectedSkillIndex;
+          const sign = sk.bonus >= 0 ? `+${sk.bonus}` : sk.bonus;
+          return `
+            <button onclick="selectVitruviaSkill(${idx})"
+                    class="${isSelected ? 'skill-chip-active' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'} px-2.5 py-1 rounded-lg border text-[11px] font-medium transition flex items-center gap-1">
+              <span>${sk.name}</span>
+              <span class="font-mono-tech text-[10px] text-cyan-300">(${sign})</span>
+            </button>
+          `;
+        }).join('');
+      }
+
+      recalculateVitruviaPool();
+    }
+
+    function renderPlayerSidebarSheet() {
+      document.getElementById('playerSheetName').textContent = activeCharacter.name || 'Дослідник';
+      document.getElementById('playerSheetHp').textContent = activeCharacter.hp || '100/100';
+      document.getElementById('playerSheetShield').textContent = activeCharacter.shield || '20';
+      if (activeCharacter.avatar) {
+        document.getElementById('playerAvatarBox').innerHTML = `<img src="${activeCharacter.avatar}" class="w-full h-full object-cover" />`;
+      }
+
+      const listEl = document.getElementById('playerSidebarStatsList');
+      if (listEl) {
+        listEl.innerHTML = characterStatsList.map((st, idx) => `
+          <button onclick="quickOpenStatRoll(${idx})"
+                  class="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/50 transition flex items-center justify-between text-left gap-1">
+            <span class="truncate text-[11px] text-slate-200" title="${st.name}">${st.icon} ${st.name}</span>
+            <span class="font-mono-tech font-bold text-emerald-400 text-xs shrink-0">${st.value}💠</span>
+          </button>
+        `).join('');
+      }
+
+      const skillsBox = document.getElementById('playerSidebarSkillsBox');
+      const skillsListEl = document.getElementById('playerSidebarSkillsList');
+      if (skillsBox && skillsListEl) {
+        const realSkills = characterSkillsList.slice(1);
+        if (realSkills.length === 0) {
+          skillsBox.classList.add('hidden');
+        } else {
+          skillsBox.classList.remove('hidden');
+          skillsListEl.innerHTML = realSkills.map((sk, idx) => {
+            const sign = sk.bonus >= 0 ? `+${sk.bonus}` : sk.bonus;
+            return `
+              <button onclick="quickOpenSkillRoll(${idx + 1})"
+                      class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 text-[11px] text-slate-200 transition flex items-center gap-1">
+                <span>${sk.name}</span>
+                <span class="font-mono-tech text-[10px] text-cyan-400">${sign}</span>
+              </button>
+            `;
+          }).join('');
+        }
+      }
+    }
+
+    function quickOpenStatRoll(statIdx) {
+      selectVitruviaStat(statIdx);
+      toggleVitruviaModal(true);
+    }
+
+    function quickOpenSkillRoll(skillIdx) {
+      selectVitruviaSkill(skillIdx);
+      toggleVitruviaModal(true);
+    }
+
+    function selectVitruviaStat(idx) {
+      selectedStatIndex = idx;
+      renderVitruviaSheetControls();
+    }
+
+    function selectVitruviaSkill(idx) {
+      selectedSkillIndex = idx;
+      renderVitruviaSheetControls();
+    }
+
+    function adjustManualDiceMod(delta) {
+      manualDiceModifier = Math.max(-10, Math.min(15, manualDiceModifier + delta));
+      recalculateVitruviaPool();
+    }
+
+    function resetSkillAndMod() {
+      selectedSkillIndex = 0;
+      manualDiceModifier = 0;
+      renderVitruviaSheetControls();
+    }
+
+    function adjustTotalPoolDirectly(delta) {
+      currentFinalPool = Math.max(1, Math.min(25, currentFinalPool + delta));
+      updatePoolFormulaUI();
+    }
+
+    function recalculateVitruviaPool() {
+      const stat = characterStatsList[selectedStatIndex] || { name: 'Бій', icon: '⚔️', value: 3 };
+      const skill = characterSkillsList[selectedSkillIndex] || { name: 'Без навички', bonus: 0 };
+      currentFinalPool = Math.max(1, Math.min(25, Number(stat.value) + Number(skill.bonus) + manualDiceModifier));
+      updatePoolFormulaUI();
+    }
+
+    function updatePoolFormulaUI() {
+      const stat = characterStatsList[selectedStatIndex] || { name: 'Бій', icon: '⚔️', value: 3 };
+      const skill = characterSkillsList[selectedSkillIndex] || { name: 'Без навички', bonus: 0 };
+      const totalMod = Number(skill.bonus) + manualDiceModifier;
+      const modStr = totalMod >= 0 ? `+${totalMod}` : `${totalMod}`;
+
+      document.getElementById('selectedStatBadge').textContent = `${stat.icon} ${stat.name}: ${stat.value}`;
+      document.getElementById('manualModValue').textContent = manualDiceModifier >= 0 ? `+${manualDiceModifier}` : `${manualDiceModifier}`;
+      document.getElementById('finalDicePoolCount').textContent = currentFinalPool;
+      document.getElementById('vitruviaPoolFormula').textContent = `${stat.icon} ${stat.name} (${stat.value}) ${modStr} = ${currentFinalPool} куб.`;
+      document.getElementById('rollButtonActionText').textContent = `Кинути ${currentFinalPool} ${getCubesPlural(currentFinalPool)} «Вітрувія»`;
+    }
+
+    function getCubesPlural(n) {
+      if (n === 1) return 'Кубик';
+      if (n >= 2 && n <= 4) return 'Кубики';
+      return 'Кубиків';
+    }
+
+    function rollVitruviaTabletop() {
+      const stat = characterStatsList[selectedStatIndex] || { name: 'Бій', icon: '⚔️', value: 3 };
+      const skill = characterSkillsList[selectedSkillIndex] || { name: 'Без навички', bonus: 0 };
+      const skillLabel = (selectedSkillIndex > 0 && skill.name) ? ` + ${skill.name} (${skill.bonus >= 0 ? '+' + skill.bonus : skill.bonus})` : '';
+
+      const rollRes = performCanonicalVitruviaRoll(currentFinalPool, stat.name, skill.name);
+      displayVitruviaRollResult(rollRes, `${stat.icon} ${stat.name}${skillLabel}`);
+
+      const symbolsString = rollRes.faces.map(f => f.type === 'full' ? '💠' : (f.type === 'half' ? '½💠' : '◇')).join(' ');
+      const logLine = `${activeCharacter.name} [${stat.icon}${stat.name}, ${rollRes.poolCount}к]: ${rollRes.totalPoints} очк. (${symbolsString})`;
+
+      appendDiceLog(logLine);
+      publishDiceEvent({
+        type: 'VITRUVIA_ROLL',
+        logLine,
+        rollRes,
+        charName: activeCharacter.name
+      });
+    }
+
+    function displayVitruviaRollResult(rollRes, checkLabel) {
+      document.getElementById('rollResultTitle').textContent = `${activeCharacter.name} — ${checkLabel}:`;
+      document.getElementById('rollTotalPointsBadge').textContent = `${rollRes.totalPoints} ${rollRes.totalPoints === 1 ? 'очко' : (rollRes.totalPoints >= 2 && rollRes.totalPoints <= 4 ? 'очки' : 'очок')}`;
+      document.getElementById('rollBreakdownText').textContent =
+        `💠 Повних (по 2): ${rollRes.fullCount} | ½💠 Півзнаків (по 1): ${rollRes.halfCount} | ◇ Пустих: ${rollRes.emptyCount}`;
+
+      const facesContainer = document.getElementById('vitruviaDiceFacesRow');
+      facesContainer.innerHTML = rollRes.faces.map((f, idx) => renderVitruviaDieFaceSVG(f.type, idx)).join('');
+    }
+
+    function appendDiceLog(text) {
+      const time = new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      state.diceLog.unshift({ time, text });
+      if (state.diceLog.length > 40) state.diceLog.pop();
+      renderDiceLog();
+    }
+
+    function clearDiceLog() {
+      state.diceLog = [];
+      renderDiceLog();
+    }
+
+    function renderDiceLog() {
+      const el = document.getElementById('vitruviaRollLog');
+      if (!el) return;
+      if (!state.diceLog || state.diceLog.length === 0) {
+        el.innerHTML = `<div class="text-slate-500">Журнал кидків порожній...</div>`;
+        return;
+      }
+      el.innerHTML = state.diceLog.map(item => `
+        <div class="py-1 border-b border-slate-800/80 flex justify-between gap-2">
+          <span class="text-slate-200">${item.text}</span>
+          <span class="text-slate-500 text-[10px] shrink-0">${item.time}</span>
+        </div>
+      `).join('');
+    }
+
+    // =========================================================================
+    // 6. РОЗМЕЖУВАННЯ РЕЖИМІВ (👁️ ГРАВЕЦЬ vs 👑 МАЙСТЕР) ТА ПАНЕЛЕЙ
+    // =========================================================================
+    function applyRoleAndCharacterUI() {
+      const roleIcon = document.getElementById('roleIcon');
+      const roleLabel = document.getElementById('roleLabel');
+      const roleBadge = document.getElementById('roleBadge');
+      const charNameHeader = document.getElementById('charNameHeader');
+      const btnEditZoneTitle = document.getElementById('btnEditZoneTitle');
+      const adminBtnText = document.getElementById('adminBtnText');
+
+      const btnToggleLeftSidebar = document.getElementById('btnToggleLeftSidebar');
+      const leftSidebar = document.getElementById('leftSidebar');
+      const rightToggleBtnText = document.getElementById('rightToggleBtnText');
+      const playerRightView = document.getElementById('playerRightView');
+      const gmRightView = document.getElementById('gmRightView');
+
+      const btnAddFloor = document.getElementById('btnAddFloor');
+      const toolbarBtnFog = document.getElementById('toolbarBtn_fog');
+      const fallbackBanner = document.getElementById('blueprintFallbackBanner');
+
+      charNameHeader.textContent = activeCharacter.name || 'Дослідник';
+      document.getElementById('breadcrumbSector').textContent = `Сектор ${state.sectorId || 'I'}`;
+      document.getElementById('breadcrumbZoneTitle').textContent = state.title.replace(/^Ігровий стіл:\s*/i, '');
+      document.getElementById('subzoneCodeBadge').textContent = state.subzone?.code || 'ПІДЗОНА I-D';
+
+      if (isGM) {
+        roleIcon.textContent = '👑';
+        roleLabel.textContent = 'Режим Майстра';
+        roleBadge.className = 'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/60 text-xs font-semibold text-emerald-300';
+        btnEditZoneTitle.classList.remove('hidden');
+        adminBtnText.textContent = 'Вийти з GM';
+
+        btnToggleLeftSidebar.classList.remove('hidden');
+        if (leftSidebarVisible) {
+          leftSidebar.classList.remove('hidden');
+          leftSidebar.classList.add('flex');
+        }
+
+        rightToggleBtnText.textContent = 'Об\'єкти';
+        playerRightView.classList.add('hidden');
+        gmRightView.classList.remove('hidden');
+        gmRightView.classList.add('flex');
+
+        btnAddFloor.classList.remove('hidden');
+        toolbarBtnFog.classList.remove('hidden');
+        if (!state.bg.dataUrl) fallbackBanner.classList.remove('hidden');
+      } else {
+        roleIcon.textContent = '👁️';
+        roleLabel.textContent = 'Режим Гравця';
+        roleBadge.className = 'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs font-medium text-slate-300';
+        btnEditZoneTitle.classList.add('hidden');
+        adminBtnText.textContent = 'Вхід Адміна';
+
+        btnToggleLeftSidebar.classList.add('hidden');
+        leftSidebar.classList.add('hidden');
+        leftSidebar.classList.remove('flex');
+
+        rightToggleBtnText.textContent = 'Персонаж';
+        gmRightView.classList.add('hidden');
+        gmRightView.classList.remove('flex');
+        playerRightView.classList.remove('hidden');
+
+        btnAddFloor.classList.add('hidden');
+        toolbarBtnFog.classList.add('hidden');
+        fallbackBanner.classList.add('hidden');
+
+        if (['zone', 'wall_cell', 'wall_vector', 'hazard', 'erase_cell', 'fog_brush'].includes(activeTool)) {
+          setActiveTool('select');
+        }
+      }
+
+      renderVitruviaSheetControls();
+      renderPlayerSidebarSheet();
+      renderCatalogItems();
+      renderInSpaceList();
+      updateInspectorPanel();
+      setTimeout(() => {
+        resizeCanvas();
+        requestRender();
+      }, 20);
+    }
+
+    function handleAdminAuthClick() {
+      if (isGM) {
+        isGM = false;
+        window.EntropiaBridge._gmOverride = false;
+        sessionStorage.setItem('entropia_user_role', 'player');
+        applyRoleAndCharacterUI();
+        return;
+      }
+      const pwd = prompt('Введіть пароль Архітектора (Майстра):');
+      if (pwd === null) return;
+      if (window.EntropiaBridge.verifyAdminPassword(pwd)) {
+        isGM = true;
+        window.EntropiaBridge._gmOverride = true;
+        leftSidebarVisible = true;
+        sessionStorage.setItem('entropia_user_role', 'gm');
+        applyRoleAndCharacterUI();
+      } else {
+        alert('Невірний пароль Адміна!');
+      }
+    }
+
+    function toggleLeftSidebar(force) {
+      if (!isGM) return;
+      leftSidebarVisible = typeof force === 'boolean' ? force : !leftSidebarVisible;
+      const el = document.getElementById('leftSidebar');
+      el.classList.toggle('hidden', !leftSidebarVisible);
+      el.classList.toggle('flex', leftSidebarVisible);
+      resizeCanvas();
+      requestRender();
+    }
+
+    function toggleRightSidebar(force) {
+      rightSidebarVisible = typeof force === 'boolean' ? force : !rightSidebarVisible;
+      const el = document.getElementById('rightSidebar');
+      el.classList.toggle('hidden', !rightSidebarVisible);
+      el.classList.toggle('flex', rightSidebarVisible);
+      resizeCanvas();
+      requestRender();
+    }
+
+    function toggleVitruviaModal(force) {
+      const modal = document.getElementById('vitruviaModal');
+      const next = typeof force === 'boolean' ? force : modal.classList.contains('hidden');
+      if (next) {
+        refreshCharacterFromBridge(false);
+        modal.classList.remove('hidden');
+        document.getElementById('vitruviaModalBody').classList.remove('hidden');
+      } else {
+        modal.classList.add('hidden');
+      }
+    }
+
+    function toggleVitruviaMinimize() {
+      document.getElementById('vitruviaModalBody').classList.toggle('hidden');
+    }
+
+    function setupDraggableVitruviaModal() {
+      const modal = document.getElementById('vitruviaModal');
+      const handle = document.getElementById('vitruviaDragHandle');
+      let dragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+
+      const startDrag = (cx, cy) => {
+        dragging = true;
+        const rect = modal.getBoundingClientRect();
+        origLeft = rect.left;
+        origTop = rect.top;
+        startX = cx;
+        startY = cy;
+      };
+      const moveDrag = (cx, cy) => {
+        if (!dragging) return;
+        modal.style.left = Math.max(8, Math.min(window.innerWidth - 140, origLeft + (cx - startX))) + 'px';
+        modal.style.top = Math.max(56, Math.min(window.innerHeight - 56, origTop + (cy - startY))) + 'px';
+        modal.style.right = 'auto';
+      };
+      const endDrag = () => { dragging = false; };
+
+      handle.addEventListener('mousedown', (e) => { if (!e.target.closest('button')) startDrag(e.clientX, e.clientY); });
+      window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+      window.addEventListener('mouseup', endDrag);
+      handle.addEventListener('touchstart', (e) => { if (!e.target.closest('button')) startDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+      window.addEventListener('touchmove', (e) => { if (dragging) moveDrag(e.touches[0].clientX, e.touches[0].clientY); }, { passive: true });
+      window.addEventListener('touchend', endDrag);
+    }
+
+    // =========================================================================
+    // 7. ПРОСТІР, ОБ'ЄКТИ ТА СПИСКИ
+    // =========================================================================
+    function readZonaPayload() {
+      try {
+        const raw = sessionStorage.getItem('entropia_zona_payload') || localStorage.getItem('entropia_zona_payload');
+        if (raw) return JSON.parse(raw);
+      } catch (e) {}
+      return null;
+    }
+
+    function loadBackgroundDataUrl(dataUrl) {
+      if (!dataUrl) return;
+      const img = new Image();
+      img.onload = () => {
+        bgImageElement = img;
+        const preview = document.getElementById('bgPreviewImg');
+        const empty = document.getElementById('bgPreviewEmpty');
+        if (preview && empty) {
+          preview.src = dataUrl;
+          preview.classList.remove('hidden');
+          empty.classList.add('hidden');
+        }
+        document.getElementById('blueprintFallbackBanner').classList.add('hidden');
+        requestRender();
+      };
+      img.src = dataUrl;
+    }
+
+    function editZoneTitle() {
+      if (!isGM) return;
+      const next = prompt('Введіть нову назву тактичної зони:', state.title);
+      if (next && next.trim()) {
+        state.title = next.trim();
+        document.getElementById('breadcrumbZoneTitle').textContent = state.title.replace(/^Ігровий стіл:\s*/i, '');
+        publishTabletopState('TITLE_EDIT');
+      }
+    }
+
+    function handleReturnToSectorClick() {
+      if (isGM) document.getElementById('gmExitModal').classList.remove('hidden');
+      else executeReturnToSector(false);
+    }
+
+    function closeGmExitModal() {
+      document.getElementById('gmExitModal').classList.add('hidden');
+    }
+
+    function executeReturnToSector(asGroup = false) {
+      if (asGroup && isGM && window.mqttClient && window.mqttClient.connected) {
+        window.mqttClient.publish(MQTT_TOPIC_COMMAND, JSON.stringify({
+          type: 'GROUP_SECTOR_TRANSFER',
+          command: { sectorId: state.sectorId || 1, timestamp: Date.now() }
+        }));
+      }
+      window.location.href = `sector1.html?role=${isGM ? 'gm' : 'player'}`;
+    }
+
+    function selectSpaceMode(mode) {
+      if (!isGM) return;
+      activeSpaceMode = mode;
+      ['grid', 'bg', 'zones', 'walls', 'objects', 'tokens'].forEach(m => {
+        document.getElementById(`modeBtn_${m}`)?.classList.toggle('mode-active', m === mode);
+        document.getElementById(`spacePanel_${m}`)?.classList.toggle('hidden', m !== mode);
+      });
+      if (mode === 'zones') setActiveTool('zone');
+      else if (mode === 'walls') setActiveTool('wall_cell');
+      else setActiveTool('select');
+    }
+
+    function getCurrentFloor() {
+      return state.floors[state.currentFloorIndex] || state.floors[0];
+    }
+
+    function syncSlidersWithState() {
+      document.getElementById('inputGridCount').value = state.grid.count;
+      document.getElementById('gridSizeLabel').textContent = `${state.grid.count}×${state.grid.count}`;
+      document.getElementById('inputGridOffsetX').value = state.grid.offsetX || 0;
+      document.getElementById('gridOffsetXLabel').textContent = `${state.grid.offsetX || 0}px`;
+      document.getElementById('inputGridOffsetY').value = state.grid.offsetY || 0;
+      document.getElementById('gridOffsetYLabel').textContent = `${state.grid.offsetY || 0}px`;
+      document.getElementById('inputGridPadding').value = state.grid.padding;
+      document.getElementById('gridPaddingLabel').textContent = `${state.grid.padding}px`;
+      document.getElementById('inputGridOpacity').value = Math.round(state.grid.opacity * 100);
+      document.getElementById('gridOpacityLabel').textContent = `${Math.round(state.grid.opacity * 100)}%`;
+
+      document.getElementById('inputBgBrightness').value = state.bg.brightness || 100;
+      document.getElementById('bgBrightnessLabel').textContent = `${state.bg.brightness || 100}%`;
+      document.getElementById('inputBgContrast').value = state.bg.contrast || 100;
+      document.getElementById('bgContrastLabel').textContent = `${state.bg.contrast || 100}%`;
+
+      updateFloorIndicatorUI();
+    }
+
+    function updateGridConfig() {
+      if (!isGM) return;
+      state.grid.count = Number(document.getElementById('inputGridCount').value);
+      state.grid.offsetX = Number(document.getElementById('inputGridOffsetX').value);
+      state.grid.offsetY = Number(document.getElementById('inputGridOffsetY').value);
+      state.grid.padding = Number(document.getElementById('inputGridPadding').value);
+      state.grid.opacity = Number(document.getElementById('inputGridOpacity').value) / 100;
+      syncSlidersWithState();
+      requestRender();
+      publishTabletopState('GRID_CONFIG');
+    }
+
+    function updateBgAdjustments() {
+      state.bg.brightness = Number(document.getElementById('inputBgBrightness').value);
+      state.bg.contrast = Number(document.getElementById('inputBgContrast').value);
+      syncSlidersWithState();
+      requestRender();
+    }
+
+    function handleBgUploadFromPC(e) {
+      if (!isGM) return;
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        state.bg.dataUrl = ev.target.result;
+        loadBackgroundDataUrl(state.bg.dataUrl);
+        publishTabletopState('BG_UPLOAD');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function promptBgFromUrl() {
+      if (!isGM) return;
+      const url = prompt('Введіть URL фонової картинки:');
+      if (url && url.trim()) {
+        state.bg.dataUrl = url.trim();
+        state.bg.mqttDataUrl = url.trim();
+        loadBackgroundDataUrl(state.bg.dataUrl);
+        publishTabletopState('BG_URL');
+      }
+    }
+
+    function setZoneColor(color) { activeZoneColor = color; setActiveTool('zone'); }
+    function removeLastZone() { if (isGM) { getCurrentFloor().zones.pop(); requestRender(); publishTabletopState('REMOVE_ZONE'); } }
+    function selectHazardBrush(type) { activeHazardType = type; setActiveTool('hazard'); }
+    function popLastVectorWall() { if (isGM) { getCurrentFloor().vectorWalls.pop(); requestRender(); publishTabletopState('POP_VECTOR_WALL'); } }
+
+    function changeFloorLayer(delta) {
+      const next = state.currentFloorIndex + delta;
+      if (next >= 0 && next < state.floors.length) {
+        state.currentFloorIndex = next;
+        selectedEntityId = null;
+        updateFloorIndicatorUI();
+        updateInspectorPanel();
+        renderInSpaceList();
+        requestRender();
+      }
+    }
+
+    function addFloorLayer() {
+      if (!isGM) return;
+      const nextNum = state.floors.length + 1;
+      const name = prompt('Назва нового поверху або підвалу:', `Рівень ${nextNum}`) || `Рівень ${nextNum}`;
+      state.floors.push(createFloorLayer(nextNum, name));
+      state.currentFloorIndex = state.floors.length - 1;
+      updateFloorIndicatorUI();
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('ADD_FLOOR');
+    }
+
+    function updateFloorIndicatorUI() {
+      const floor = getCurrentFloor();
+      document.getElementById('floorIndicator').textContent = `${state.currentFloorIndex + 1}/${state.floors.length}`;
+      document.getElementById('floorNameLabel').textContent = floor.name;
+    }
+
+    function setActiveTool(tool) {
+      if (!isGM && ['zone', 'wall_cell', 'wall_vector', 'hazard', 'erase_cell', 'fog_brush'].includes(tool)) return;
+      activeTool = tool;
+      rulerStart = null; rulerEnd = null; vectorWallStart = null; vectorWallCurrent = null;
+
+      const btnIds = {
+        select: 'toolbarBtn_select', ruler: 'toolbarBtn_ruler', text: 'toolbarBtn_text',
+        fog_brush: 'toolbarBtn_fog', zone: 'btnActivateZoneTool', wall_cell: 'btnWallBlock',
+        wall_vector: 'btnWallVector', erase_cell: 'btnEraseCell'
+      };
+      Object.values(btnIds).forEach(id => document.getElementById(id)?.classList.remove('tool-active'));
+      if (btnIds[tool]) document.getElementById(btnIds[tool])?.classList.add('tool-active');
+
+      ['btnHazardSpores', 'btnHazardFire', 'btnHazardAcid'].forEach(id => document.getElementById(id)?.classList.remove('tool-active'));
+      if (tool === 'hazard') {
+        const hMap = { spores: 'btnHazardSpores', fire: 'btnHazardFire', acid: 'btnHazardAcid' };
+        document.getElementById(hMap[activeHazardType])?.classList.add('tool-active');
+      }
+      requestRender();
+    }
+
+    function toggleFogToolOrVisibility() { if (isGM) setActiveTool(activeTool === 'fog_brush' ? 'select' : 'fog_brush'); }
+
+    function toggleGridLines() {
+      state.grid.show = !state.grid.show;
+      const btn = document.getElementById('toolbarBtn_grid');
+      btn.classList.toggle('text-emerald-300', state.grid.show);
+      btn.classList.toggle('border-emerald-500/40', state.grid.show);
+      requestRender();
+    }
+
+    function switchCatalogTab(tab) {
+      activeCatalogTab = tab;
+      document.getElementById('catTab_general').className = tab === 'general'
+        ? 'py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold transition'
+        : 'py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition';
+      document.getElementById('catTab_personal').className = tab === 'personal'
+        ? 'py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold transition'
+        : 'py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition';
+      renderCatalogItems();
+    }
+
+    function renderCatalogItems() {
+      const grid = document.getElementById('catalogGrid');
+      if (!grid) return;
+      const query = (document.getElementById('catalogSearchInput')?.value || '').trim().toLowerCase();
+      const source = activeCatalogTab === 'general' ? READY_ENVIRONMENT_CATALOG : personalCatalog;
+      const filtered = source.filter(item => item.name.toLowerCase().includes(query));
+
+      if (filtered.length === 0) {
+        grid.innerHTML = `<div class="col-span-2 text-center py-4 text-slate-500 text-[11px]">Немає елементів у цій вкладці</div>`;
+        return;
+      }
+
+      grid.innerHTML = filtered.map(item => `
+        <div draggable="true"
+             ondragstart="handleCatalogDragStart(event, '${item.id}')"
+             onclick="spawnCatalogEntity('${item.id}')"
+             class="p-2 rounded-xl bg-[#0b0e14] hover:bg-slate-800/90 border border-slate-800 hover:border-emerald-500/50 transition flex items-center gap-2 cursor-grab active:cursor-grabbing group">
+          <span class="text-lg shrink-0">${item.icon}</span>
+          <div class="min-w-0">
+            <div class="text-[11px] font-medium text-slate-200 group-hover:text-emerald-300 truncate">${item.name}</div>
+            <div class="text-[9px] text-slate-500 font-mono-tech">${item.cells || 1}×${item.cells || 1} кл. • ${item.kind === 'token' ? 'Токен' : 'Об\'єкт'}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function handleCatalogDragStart(e, itemId) { e.dataTransfer.setData('text/plain', itemId); }
+    function handleCanvasDragOver(e) { e.preventDefault(); }
+    function handleCanvasDrop(e) {
+      e.preventDefault();
+      if (!isGM) return;
+      const itemId = e.dataTransfer.getData('text/plain');
+      if (!itemId) return;
+      const { bx, by } = screenToBoardCoords(e.clientX, e.clientY);
+      const cell = boardToGridCell(bx, by);
+      spawnCatalogEntity(itemId, cell.col, cell.row);
+    }
+
+    function spawnCatalogEntity(itemId, targetCol, targetRow) {
+      if (!isGM) return;
+      const all = [...READY_ENVIRONMENT_CATALOG, ...personalCatalog];
+      const tpl = all.find(x => x.id === itemId);
+      if (!tpl) return;
+
+      const floor = getCurrentFloor();
+      const center = Math.floor(state.grid.count / 2);
+      const entity = {
+        id: 'ent_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        name: tpl.name,
+        icon: tpl.icon || '📦',
+        imageUrl: tpl.imageUrl || null,
+        kind: tpl.kind || 'object',
+        cells: Number(tpl.cells || 1),
+        color: tpl.color || '#10b981',
+        col: typeof targetCol === 'number' ? targetCol : center,
+        row: typeof targetRow === 'number' ? targetRow : center,
+        scale: 1,
+        rotation: 0,
+        hp: tpl.hp || '100/100',
+        shield: tpl.shield || '0',
+        hidden: false,
+        isNpc: Boolean(tpl.isNpc),
+        owner: activeCharacter.name
+      };
+
+      floor.entities.push(entity);
+      selectedEntityId = entity.id;
+      setActiveTool('select');
+      updateInspectorPanel();
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('SPAWN_ENTITY');
+    }
+
+    function spawnQuickToken(type) {
+      if (!isGM) return;
+      const mapId = { automaton: 'tok_automaton', predator: 'tok_predator', boss: 'tok_boss', npc: 'tok_npc' };
+      spawnCatalogEntity(mapId[type]);
+    }
+
+    function placeOrMoveMyToken() {
+      refreshCharacterFromBridge(false);
+      const floor = getCurrentFloor();
+      let myToken = floor.entities.find(e => e.isPlayerToken && e.owner === activeCharacter.name);
+      const center = Math.floor(state.grid.count / 2);
+
+      if (!myToken) {
+        myToken = {
+          id: 'player_' + activeCharacter.name.replace(/\s+/g, '_'),
+          name: activeCharacter.name,
+          icon: '🚶',
+          imageUrl: activeCharacter.avatar || null,
+          kind: 'token',
+          cells: 1,
+          color: '#22d3ee',
+          col: center,
+          row: center,
+          scale: 1,
+          rotation: 0,
+          hp: activeCharacter.hp || '100/100',
+          shield: activeCharacter.shield || '20',
+          hidden: false,
+          isPlayerToken: true,
+          isNpc: false,
+          owner: activeCharacter.name
+        };
+        floor.entities.push(myToken);
+      } else {
+        myToken.name = activeCharacter.name;
+        myToken.hp = activeCharacter.hp || myToken.hp;
+        myToken.shield = activeCharacter.shield || myToken.shield;
+        if (activeCharacter.avatar) myToken.imageUrl = activeCharacter.avatar;
+      }
+
+      selectedEntityId = myToken.id;
+      setActiveTool('select');
+      centerCameraOnCell(myToken.col, myToken.row);
+      updateInspectorPanel();
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('PLAYER_TOKEN_PLACE');
+    }
+
+    function handleCustomObjectUpload(e) {
+      if (!isGM) return;
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const cells = Number(document.getElementById('uploadCellsSize').value || 1);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const name = prompt('Назва об\'єкта або токена:', file.name.replace(/\.[^/.]+$/, '')) || 'Кастомний об\'єкт';
+        registerCustomCatalogAsset(name, ev.target.result, cells);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function promptCustomObjectUrl() {
+      if (!isGM) return;
+      const url = prompt('Введіть URL зображення (PNG/JPG/WebP):');
+      if (!url || !url.trim()) return;
+      const cells = Number(document.getElementById('uploadCellsSize').value || 1);
+      const name = prompt('Назва об\'єкта або токена:', 'Кастомний об\'єкт') || 'Кастомний об\'єкт';
+      registerCustomCatalogAsset(name, url.trim(), cells);
+    }
+
+    function registerCustomCatalogAsset(name, imageUrl, cells) {
+      const item = {
+        id: 'custom_' + Date.now(), name, icon: '🖼️', imageUrl,
+        category: 'personal', kind: 'object',
+        cells: Math.max(1, Math.min(8, cells || 1)),
+        color: '#22d3ee', hp: '100/100', shield: '0'
+      };
+      personalCatalog.push(item);
+      switchCatalogTab('personal');
+      spawnCatalogEntity(item.id);
+    }
+
+    function updateInspectorPanel() {
+      const box = document.getElementById('objectInspector');
+      if (!box) return;
+      const ent = getCurrentFloor().entities.find(e => e.id === selectedEntityId);
+      if (!ent || !isGM) { box.classList.add('hidden'); return; }
+      box.classList.remove('hidden');
+      document.getElementById('inspName').value = ent.name || '';
+      document.getElementById('inspCells').value = ent.cells || 1;
+      document.getElementById('inspHp').value = ent.hp || '';
+      document.getElementById('inspShield').value = ent.shield || '';
+      document.getElementById('inspScale').value = ent.scale || 1;
+      document.getElementById('inspScaleLabel').textContent = Number(ent.scale || 1).toFixed(1);
+      document.getElementById('inspRotation').value = ent.rotation || 0;
+      document.getElementById('inspRotLabel').textContent = ent.rotation || 0;
+      document.getElementById('inspHidden').checked = Boolean(ent.hidden);
+    }
+
+    function applyInspectorChanges() {
+      if (!isGM) return;
+      const ent = getCurrentFloor().entities.find(e => e.id === selectedEntityId);
+      if (!ent) return;
+      ent.name = document.getElementById('inspName').value;
+      ent.cells = Math.max(1, Math.min(8, Number(document.getElementById('inspCells').value || 1)));
+      ent.hp = document.getElementById('inspHp').value;
+      ent.shield = document.getElementById('inspShield').value;
+      ent.scale = Number(document.getElementById('inspScale').value);
+      ent.rotation = Number(document.getElementById('inspRotation').value);
+      ent.hidden = document.getElementById('inspHidden').checked;
+      document.getElementById('inspScaleLabel').textContent = ent.scale.toFixed(1);
+      document.getElementById('inspRotLabel').textContent = ent.rotation;
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('UPDATE_ENTITY');
+    }
+
+    function toggleEntityVisibility(id) {
+      if (!isGM) return;
+      const ent = getCurrentFloor().entities.find(e => e.id === id);
+      if (!ent) return;
+      ent.hidden = !ent.hidden;
+      updateInspectorPanel();
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('TOGGLE_HIDE_ENTITY');
+    }
+
+    function deleteSelectedEntity() { if (selectedEntityId) deleteEntityById(selectedEntityId); }
+
+    function deleteEntityById(id) {
+      const floor = getCurrentFloor();
+      const ent = floor.entities.find(e => e.id === id);
+      if (!ent || (!isGM && ent.owner !== activeCharacter.name)) return;
+      floor.entities = floor.entities.filter(e => e.id !== id);
+      if (selectedEntityId === id) { selectedEntityId = null; updateInspectorPanel(); }
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('DELETE_ENTITY');
+    }
+
+    function clearFloorEntities() {
+      if (!isGM) return;
+      getCurrentFloor().entities = [];
+      selectedEntityId = null;
+      updateInspectorPanel();
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('CLEAR_FLOOR');
+    }
+
+    function renderInSpaceList() {
+      const floor = getCurrentFloor();
+      const visibleEntities = floor.entities.filter(e => isGM || (!e.hidden && !floor.fog[`${e.col},${e.row}`]));
+
+      const gmCounter = document.getElementById('inSpaceCounter');
+      const gmContainer = document.getElementById('inSpaceListContainer');
+      if (gmCounter && gmContainer) {
+        gmCounter.textContent = floor.entities.length;
+        gmContainer.innerHTML = floor.entities.length === 0
+          ? `<div class="text-slate-500 text-[11px] py-3 text-center">У просторі ще немає об'єктів</div>`
+          : floor.entities.map(ent => {
+              const coord = `${COORD_LETTERS[ent.col] || 'А'}-${ent.row + 1}`;
+              return `
+                <div onclick="focusEntityFromList('${ent.id}')"
+                     class="px-2.5 py-1.5 rounded-xl border ${ent.id === selectedEntityId ? 'bg-emerald-950/50 border-emerald-500/60' : 'bg-[#0b0e14] border-slate-800 hover:border-slate-700'} flex items-center justify-between cursor-pointer transition">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-sm">${ent.icon || '📦'}</span>
+                    <div class="min-w-0">
+                      <div class="text-[11px] font-medium text-slate-200 truncate">${ent.name} ${ent.hidden ? '🙈' : ''}</div>
+                      <div class="text-[10px] text-slate-500 font-mono-tech">${coord} • ❤️${ent.hp || '-'} ${ent.shield && ent.shield !== '0' ? '🛡️' + ent.shield : ''}</div>
+                    </div>
+                  </div>
+                  <div class="flex items-center gap-1 shrink-0">
+                    <button onclick="event.stopPropagation(); toggleEntityVisibility('${ent.id}')" class="p-1 text-slate-400 hover:text-amber-300">${ent.hidden ? '🙈' : '👁️'}</button>
+                    <button onclick="event.stopPropagation(); deleteEntityById('${ent.id}')" class="p-1 text-slate-500 hover:text-rose-400">🗑️</button>
+                  </div>
+                </div>
+              `;
+            }).join('');
+      }
+
+      const plCounter = document.getElementById('playerVisibleCounter');
+      const plContainer = document.getElementById('playerVisibleEntitiesList');
+      if (plCounter && plContainer) {
+        plCounter.textContent = visibleEntities.length;
+        plContainer.innerHTML = visibleEntities.length === 0
+          ? `<div class="text-slate-500 text-[11px] py-3 text-center">Поруч немає видимих об'єктів</div>`
+          : visibleEntities.map(ent => {
+              const coord = `${COORD_LETTERS[ent.col] || 'А'}-${ent.row + 1}`;
+              const isMine = ent.owner === activeCharacter.name;
+              return `
+                <div onclick="focusEntityFromList('${ent.id}')"
+                     class="px-2.5 py-1.5 rounded-xl bg-[#0b0e14] border ${ent.id === selectedEntityId ? 'border-cyan-500/60' : 'border-slate-800'} flex items-center justify-between cursor-pointer">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="text-sm">${ent.icon || '🎯'}</span>
+                    <div class="min-w-0">
+                      <div class="text-[11px] font-medium ${isMine ? 'text-cyan-300' : 'text-slate-200'} truncate">${ent.name}</div>
+                      <div class="text-[10px] text-slate-500 font-mono-tech">${coord} ${ent.hp ? '• ❤️' + ent.hp : ''}</div>
+                    </div>
+                  </div>
+                  ${isMine && !ent.isPlayerToken ? `<button onclick="event.stopPropagation(); deleteEntityById('${ent.id}')" class="text-slate-500 hover:text-rose-400 text-xs">🗑️</button>` : ''}
+                </div>
+              `;
+            }).join('');
+      }
+    }
+
+    function focusEntityFromList(id) {
+      const ent = getCurrentFloor().entities.find(e => e.id === id);
+      if (!ent) return;
+      selectedEntityId = id;
+      centerCameraOnCell(ent.col, ent.row);
+      updateInspectorPanel();
+      renderInSpaceList();
+      requestRender();
+    }
+
+    // =========================================================================
+    // 8. ТАКТИЧНИЙ CANVAS
+    // =========================================================================
+    function resizeCanvas() {
+      const vp = document.getElementById('canvasViewport');
+      if (!vp) return;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = vp.clientWidth * dpr;
+      canvas.height = vp.clientHeight * dpr;
+      canvas.style.width = vp.clientWidth + 'px';
+      canvas.style.height = vp.clientHeight + 'px';
+      requestRender();
+    }
+
+    function resetCameraAndZoom() {
+      const vp = document.getElementById('canvasViewport');
+      camera.zoom = Math.max(0.4, Number(Math.min((vp.clientWidth - 60) / BOARD_BASE_PX, (vp.clientHeight - 80) / BOARD_BASE_PX, 1.15).toFixed(2)));
+      camera.x = (vp.clientWidth - BOARD_BASE_PX * camera.zoom) / 2;
+      camera.y = (vp.clientHeight - BOARD_BASE_PX * camera.zoom) / 2;
+      document.getElementById('zoomLabel').textContent = `${Math.round(camera.zoom * 100)}%`;
+      requestRender();
+    }
+
+    function centerCameraOnCell(col, row) {
+      const vp = document.getElementById('canvasViewport');
+      const pad = state.grid.padding;
+      const cellSize = (BOARD_BASE_PX - pad * 2) / state.grid.count;
+      const boardX = pad + state.grid.offsetX + (col + 0.5) * cellSize;
+      const boardY = pad + state.grid.offsetY + (row + 0.5) * cellSize;
+      camera.x = vp.clientWidth / 2 - boardX * camera.zoom;
+      camera.y = vp.clientHeight / 2 - boardY * camera.zoom;
+      requestRender();
+    }
+
+    function stepZoom(delta) {
+      const vp = document.getElementById('canvasViewport');
+      const cx = vp.clientWidth / 2, cy = vp.clientHeight / 2;
+      const wx = (cx - camera.x) / camera.zoom, wy = (cy - camera.y) / camera.zoom;
+      camera.zoom = Math.min(2.6, Math.max(0.35, camera.zoom + delta));
+      camera.x = cx - wx * camera.zoom;
+      camera.y = cy - wy * camera.zoom;
+      document.getElementById('zoomLabel').textContent = `${Math.round(camera.zoom * 100)}%`;
+      requestRender();
+    }
+
+    function screenToBoardCoords(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      return { bx: (clientX - rect.left - camera.x) / camera.zoom, by: (clientY - rect.top - camera.y) / camera.zoom };
+    }
+
+    function boardToGridCell(bx, by) {
+      const pad = state.grid.padding, ox = state.grid.offsetX || 0, oy = state.grid.offsetY || 0;
+      const cellSize = (BOARD_BASE_PX - pad * 2) / state.grid.count;
+      const col = Math.floor((bx - pad - ox) / cellSize);
+      const row = Math.floor((by - pad - oy) / cellSize);
+      return {
+        col: Math.max(0, Math.min(state.grid.count - 1, col)),
+        row: Math.max(0, Math.min(state.grid.count - 1, row)),
+        inBounds: col >= 0 && col < state.grid.count && row >= 0 && row < state.grid.count
+      };
+    }
+
+    function requestRender() { window.requestAnimationFrame(renderTacticalCanvas); }
+
+    function renderTacticalCanvas() {
+      const dpr = window.devicePixelRatio || 1;
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+
+      ctx.translate(camera.x, camera.y);
+      ctx.scale(camera.zoom, camera.zoom);
+
+      const pad = state.grid.padding, ox = state.grid.offsetX || 0, oy = state.grid.offsetY || 0;
+      const innerSize = BOARD_BASE_PX - pad * 2, count = state.grid.count, cellSize = innerSize / count;
+      const floor = getCurrentFloor();
+
+      ctx.fillStyle = '#0b0e14';
+      ctx.fillRect(0, 0, BOARD_BASE_PX, BOARD_BASE_PX);
+
+      if (bgImageElement) {
+        ctx.save();
+        ctx.filter = `brightness(${state.bg.brightness || 100}%) contrast(${state.bg.contrast || 100}%)`;
+        ctx.drawImage(bgImageElement, pad, pad, innerSize, innerSize);
+        ctx.restore();
+      } else {
+        const grad = ctx.createRadialGradient(BOARD_BASE_PX / 2, BOARD_BASE_PX / 2, 30, BOARD_BASE_PX / 2, BOARD_BASE_PX / 2, BOARD_BASE_PX / 1.3);
+        grad.addColorStop(0, '#101b2b');
+        grad.addColorStop(1, '#080c14');
+        ctx.fillStyle = grad;
+        ctx.fillRect(pad, pad, innerSize, innerSize);
+      }
+
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          const key = `${c},${r}`, x = pad + ox + c * cellSize, y = pad + oy + r * cellSize;
+          const hazard = floor.hazards[key];
+          if (hazard) {
+            ctx.fillStyle = hazard === 'spores' ? 'rgba(244, 63, 94, 0.38)' : (hazard === 'fire' ? 'rgba(249, 115, 22, 0.40)' : 'rgba(132, 204, 22, 0.35)');
+            ctx.fillRect(x, y, cellSize, cellSize);
+            ctx.font = `${Math.max(10, cellSize * 0.34)}px sans-serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(hazard === 'spores' ? '☣️' : (hazard === 'fire' ? '🔥' : '🧪'), x + cellSize / 2, y + cellSize / 2);
+          }
+          if (floor.walls[key]) {
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+            ctx.fillRect(x, y, cellSize, cellSize);
+            ctx.strokeStyle = '#64748b'; ctx.lineWidth = 1.5;
+            ctx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+          }
+        }
+      }
+
+      const allZones = [...floor.zones];
+      if (zoneDragStart && zoneDragCurrent) {
+        allZones.push({
+          x1: Math.min(zoneDragStart.col, zoneDragCurrent.col), y1: Math.min(zoneDragStart.row, zoneDragCurrent.row),
+          x2: Math.max(zoneDragStart.col, zoneDragCurrent.col), y2: Math.max(zoneDragStart.row, zoneDragCurrent.row),
+          label: 'Виділення зони...', color: activeZoneColor
+        });
+      }
+      allZones.forEach(z => {
+        const zx = pad + ox + z.x1 * cellSize, zy = pad + oy + z.y1 * cellSize;
+        const zw = (z.x2 - z.x1 + 1) * cellSize, zh = (z.y2 - z.y1 + 1) * cellSize;
+        ctx.save();
+        ctx.fillStyle = (z.color || '#10b981') + '18';
+        ctx.fillRect(zx, zy, zw, zh);
+        ctx.strokeStyle = z.color || '#10b981'; ctx.lineWidth = 2; ctx.setLineDash([7, 5]);
+        ctx.strokeRect(zx + 2, zy + 2, zw - 4, zh - 4);
+        ctx.setLineDash([]);
+        ctx.fillStyle = z.color || '#10b981';
+        ctx.font = 'bold 12px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+        ctx.fillText(`🏷️ ${z.label}`, zx + 8, zy + 6);
+        ctx.restore();
+      });
+
+      if (state.grid.show) {
+        ctx.strokeStyle = `rgba(34, 211, 238, ${state.grid.opacity})`; ctx.lineWidth = 1;
+        for (let i = 0; i <= count; i++) {
+          const vx = pad + ox + i * cellSize, hy = pad + oy + i * cellSize;
+          ctx.beginPath(); ctx.moveTo(vx, pad + oy); ctx.lineTo(vx, pad + oy + innerSize); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(pad + ox, hy); ctx.lineTo(pad + ox + innerSize, hy); ctx.stroke();
+        }
+      }
+
+      const vectors = [...(floor.vectorWalls || [])];
+      if (vectorWallStart && vectorWallCurrent) vectors.push({ c1: vectorWallStart.col, r1: vectorWallStart.row, c2: vectorWallCurrent.col, r2: vectorWallCurrent.row });
+      vectors.forEach(vw => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.moveTo(pad + ox + (vw.c1 + 0.5) * cellSize, pad + oy + (vw.r1 + 0.5) * cellSize);
+        ctx.lineTo(pad + ox + (vw.c2 + 0.5) * cellSize, pad + oy + (vw.r2 + 0.5) * cellSize);
+        ctx.strokeStyle = '#f59e0b'; ctx.lineWidth = 4; ctx.lineCap = 'round'; ctx.stroke();
+        ctx.restore();
+      });
+
+      ctx.fillStyle = '#94a3b8'; ctx.font = 'bold 11px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (let i = 0; i < count; i++) {
+        ctx.fillText(COORD_LETTERS[i] || String(i + 1), pad + ox + (i + 0.5) * cellSize, Math.max(12, pad / 2));
+        ctx.fillText(String(i + 1), Math.max(12, pad / 2), pad + oy + (i + 0.5) * cellSize);
+      }
+
+      floor.entities.forEach(ent => {
+        if (ent.hidden && !isGM) return;
+        if (!isGM && floor.fog[`${ent.col},${ent.row}`]) return;
+
+        const spanCells = Number(ent.cells || 1);
+        const cx = pad + ox + (ent.col + spanCells / 2) * cellSize;
+        const cy = pad + oy + (ent.row + spanCells / 2) * cellSize;
+        const radius = (cellSize * spanCells * 0.42) * (ent.scale || 1);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        if (ent.rotation) ctx.rotate((ent.rotation * Math.PI) / 180);
+        if (ent.hidden) ctx.globalAlpha = 0.5;
+
+        if (ent.id === selectedEntityId) {
+          ctx.beginPath(); ctx.arc(0, 0, radius + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 2.5; ctx.stroke();
+        }
+
+        if (ent.kind === 'text') {
+          ctx.fillStyle = '#f8fafc'; ctx.font = `bold ${Math.round(14 * (ent.scale || 1))}px Inter, sans-serif`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ent.name, 0, 0);
+        } else {
+          ctx.beginPath();
+          if (ent.kind === 'token') ctx.arc(0, 0, radius, 0, Math.PI * 2);
+          else ctx.roundRect(-radius, -radius, radius * 2, radius * 2, 8);
+          ctx.fillStyle = '#0f172a'; ctx.fill();
+          ctx.lineWidth = 2.5; ctx.strokeStyle = ent.color || '#10b981'; ctx.stroke();
+
+          if (ent.imageUrl) {
+            if (!imageElementCache[ent.imageUrl]) {
+              const im = new Image(); im.onload = () => requestRender(); im.src = ent.imageUrl;
+              imageElementCache[ent.imageUrl] = im;
+            }
+            const cached = imageElementCache[ent.imageUrl];
+            if (cached && cached.complete) {
+              ctx.save(); ctx.beginPath();
+              if (ent.kind === 'token') ctx.arc(0, 0, radius - 2, 0, Math.PI * 2);
+              else ctx.roundRect(-radius + 2, -radius + 2, (radius - 2) * 2, (radius - 2) * 2, 6);
+              ctx.clip(); ctx.drawImage(cached, -radius, -radius, radius * 2, radius * 2); ctx.restore();
+            }
+          } else {
+            ctx.font = `${Math.max(12, radius * 1.05)}px sans-serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ent.icon || '🎯', 0, 1);
+          }
+        }
+        ctx.restore();
+
+        if (ent.kind !== 'text') {
+          ctx.save();
+          ctx.font = '600 10px Inter, sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = '#f1f5f9';
+          ctx.fillText(ent.name, cx, cy + radius + 11);
+          if (ent.hp || ent.shield) {
+            ctx.font = '9px "JetBrains Mono", monospace'; ctx.fillStyle = '#34d399';
+            ctx.fillText(`${ent.hp ? '❤️' + ent.hp : ''}${ent.shield && ent.shield !== '0' ? ' 🛡️' + ent.shield : ''}`, cx, cy + radius + 22);
+          }
+          ctx.restore();
+        }
+      });
+
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          if (floor.fog[`${c},${r}`]) {
+            ctx.fillStyle = isGM ? 'rgba(2, 6, 23, 0.55)' : 'rgba(2, 6, 23, 0.96)';
+            ctx.fillRect(pad + ox + c * cellSize, pad + oy + r * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+
+      if (activeTool === 'ruler' && rulerStart && rulerEnd) {
+        const x1 = pad + ox + (rulerStart.col + 0.5) * cellSize, y1 = pad + oy + (rulerStart.row + 0.5) * cellSize;
+        const x2 = pad + ox + (rulerEnd.col + 0.5) * cellSize, y2 = pad + oy + (rulerEnd.row + 0.5) * cellSize;
+        const distCells = Math.hypot(rulerEnd.col - rulerStart.col, rulerEnd.row - rulerStart.row);
+        const text = `${distCells.toFixed(1)} кл. (${(distCells * state.cellMeters).toFixed(1)} м)`;
+
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+        ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 2.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - 12;
+        ctx.font = 'bold 11px "JetBrains Mono", monospace';
+        const w = ctx.measureText(text).width + 14;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.95)'; ctx.fillRect(mx - w / 2, my - 10, w, 20);
+        ctx.strokeStyle = '#22d3ee'; ctx.strokeRect(mx - w / 2, my - 10, w, 20);
+        ctx.fillStyle = '#22d3ee'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, mx, my);
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+
+    // =========================================================================
+    // 9. ОБРОБНИКИ ПОДІЙ НА ТАКТИЧНОМУ ПОЛІ
+    // =========================================================================
+    function setupCanvasListeners() {
+      canvas.addEventListener('contextmenu', e => e.preventDefault());
+      canvas.addEventListener('wheel', (e) => { e.preventDefault(); stepZoom(e.deltaY < 0 ? 0.12 : -0.12); }, { passive: false });
+
+      canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 1 || e.button === 2) {
+          isPanning = true; panStart = { x: e.clientX - camera.x, y: e.clientY - camera.y }; return;
+        }
+        const { bx, by } = screenToBoardCoords(e.clientX, e.clientY);
+        const cell = boardToGridCell(bx, by);
+        if (!cell.inBounds) return;
+        const floor = getCurrentFloor();
+
+        if (activeTool === 'select') {
+          const hit = [...floor.entities].reverse().find(ent => {
+            if (ent.hidden && !isGM) return false;
+            const span = Number(ent.cells || 1);
+            return cell.col >= ent.col && cell.col < ent.col + span && cell.row >= ent.row && cell.row < ent.row + span;
+          });
+          if (hit) {
+            selectedEntityId = hit.id;
+            if (isGM || hit.owner === activeCharacter.name || hit.isPlayerToken) isDraggingEntity = true;
+          } else selectedEntityId = null;
+          updateInspectorPanel(); renderInSpaceList(); requestRender();
+        } else if (activeTool === 'ruler') {
+          rulerStart = { col: cell.col, row: cell.row }; rulerEnd = { col: cell.col, row: cell.row }; requestRender();
+        } else if (activeTool === 'text') {
+          const txt = prompt('Введіть текст мітки на полі:');
+          if (txt && txt.trim()) {
+            floor.entities.push({ id: 'txt_' + Date.now(), name: txt.trim(), icon: 'T', kind: 'text', cells: 1, color: '#f8fafc', col: cell.col, row: cell.row, scale: 1, rotation: 0, owner: activeCharacter.name });
+            renderInSpaceList(); requestRender(); publishTabletopState('ADD_TEXT');
+          }
+          setActiveTool('select');
+        } else if (activeTool === 'zone' && isGM) {
+          zoneDragStart = { col: cell.col, row: cell.row }; zoneDragCurrent = { col: cell.col, row: cell.row }; requestRender();
+        } else if (activeTool === 'wall_vector' && isGM) {
+          vectorWallStart = { col: cell.col, row: cell.row }; vectorWallCurrent = { col: cell.col, row: cell.row }; requestRender();
+        } else if (['wall_cell', 'hazard', 'erase_cell', 'fog_brush'].includes(activeTool) && isGM) {
+          isPaintingCells = true; applyBrushToCell(cell.col, cell.row);
+        }
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (isPanning) { camera.x = e.clientX - panStart.x; camera.y = e.clientY - panStart.y; requestRender(); return; }
+        const { bx, by } = screenToBoardCoords(e.clientX, e.clientY);
+        const cell = boardToGridCell(bx, by);
+        if (cell.inBounds) document.getElementById('hoverCoordText').textContent = `${COORD_LETTERS[cell.col] || 'А'}-${cell.row + 1}`;
+
+        if (isDraggingEntity && selectedEntityId && cell.inBounds) {
+          const floor = getCurrentFloor();
+          const ent = floor.entities.find(x => x.id === selectedEntityId);
+          if (ent && (ent.col !== cell.col || ent.row !== cell.row)) {
+            if (!isGM && floor.walls[`${cell.col},${cell.row}`]) return;
+            ent.col = cell.col; ent.row = cell.row; renderInSpaceList(); requestRender();
+          }
+        } else if (zoneDragStart && cell.inBounds) { zoneDragCurrent = { col: cell.col, row: cell.row }; requestRender(); }
+        else if (vectorWallStart && cell.inBounds) { vectorWallCurrent = { col: cell.col, row: cell.row }; requestRender(); }
+        else if (isPaintingCells && cell.inBounds) { applyBrushToCell(cell.col, cell.row); }
+        else if (activeTool === 'ruler' && rulerStart && cell.inBounds) { rulerEnd = { col: cell.col, row: cell.row }; requestRender(); }
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isPanning) isPanning = false;
+        if (isDraggingEntity) { isDraggingEntity = false; publishTabletopState('MOVE_ENTITY'); }
+        if (zoneDragStart && zoneDragCurrent) {
+          const label = prompt('Підпис зони (напр. «Посадочна зона», «Укриття»):', 'Укриття');
+          if (label && label.trim()) {
+            getCurrentFloor().zones.push({
+              x1: Math.min(zoneDragStart.col, zoneDragCurrent.col), y1: Math.min(zoneDragStart.row, zoneDragCurrent.row),
+              x2: Math.max(zoneDragStart.col, zoneDragCurrent.col), y2: Math.max(zoneDragStart.row, zoneDragCurrent.row),
+              label: label.trim(), color: activeZoneColor
+            });
+            publishTabletopState('ADD_ZONE');
+          }
+          zoneDragStart = null; zoneDragCurrent = null; requestRender();
+        }
+        if (vectorWallStart && vectorWallCurrent) {
+          getCurrentFloor().vectorWalls.push({ c1: vectorWallStart.col, r1: vectorWallStart.row, c2: vectorWallCurrent.col, r2: vectorWallCurrent.row });
+          vectorWallStart = null; vectorWallCurrent = null; requestRender(); publishTabletopState('ADD_VECTOR_WALL');
+        }
+        if (isPaintingCells) { isPaintingCells = false; publishTabletopState('CELL_BRUSH'); }
+      });
+    }
+
+    function applyBrushToCell(col, row) {
+      if (!isGM) return;
+      const floor = getCurrentFloor(), key = `${col},${row}`;
+      if (activeTool === 'wall_cell') floor.walls[key] = true;
+      else if (activeTool === 'hazard') floor.hazards[key] = activeHazardType;
+      else if (activeTool === 'erase_cell') { delete floor.walls[key]; delete floor.hazards[key]; delete floor.fog[key]; }
+      else if (activeTool === 'fog_brush') { if (floor.fog[key]) delete floor.fog[key]; else floor.fog[key] = true; }
+      requestRender();
+    }
+
+    // =========================================================================
+    // 10. MQTT СИНХРОНІЗАЦІЯ ТА ЗБЕРЕЖЕННЯ HTML
+    // =========================================================================
+    function initMqttConnection() {
+      const dot = document.getElementById('mqttDot');
+      const statusText = document.getElementById('mqttStatusText');
+      try {
+        const client = mqtt.connect(MQTT_BROKER_URL, { clientId, clean: true, connectTimeout: 5000, reconnectPeriod: 4000 });
+        window.mqttClient = client;
+
+        client.on('connect', () => {
+          if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+          if (statusText) statusText.textContent = 'MQTT: Онлайн';
+          client.subscribe([MQTT_TOPIC_COMMAND, MQTT_TOPIC_ZONA_SYNC, MQTT_TOPIC_DICE_SYNC]);
+          if (isGM) publishTabletopState('GM_ONLINE');
+          else client.publish(MQTT_TOPIC_ZONA_SYNC, JSON.stringify({ sender: clientId, type: 'REQUEST_STATE', charName: activeCharacter.name }));
+        });
+
+        client.on('offline', () => {
+          if (dot) dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+          if (statusText) statusText.textContent = 'MQTT: Офлайн';
+        });
+
+        client.on('message', (topic, message) => {
+          try {
+            const packet = JSON.parse(message.toString());
+            if (packet.sender === clientId) return;
+            if (topic === MQTT_TOPIC_COMMAND && packet.type === 'GROUP_SECTOR_TRANSFER') {
+              window.location.href = 'sector1.html?role=player';
+              return;
+            }
+            if (topic === MQTT_TOPIC_ZONA_SYNC) {
+              if (packet.type === 'REQUEST_STATE' && isGM) publishTabletopState('STATE_RESPONSE');
+              else if (packet.type === 'TABLETOP_SYNC' && packet.payload) {
+                const localBg = state.bg.dataUrl;
+                state = Object.assign(state, packet.payload);
+                if (!state.bg.dataUrl && localBg) state.bg.dataUrl = localBg;
+                else if (state.bg.dataUrl && state.bg.dataUrl !== localBg) loadBackgroundDataUrl(state.bg.dataUrl);
+                syncSlidersWithState(); renderInSpaceList(); requestRender();
+              }
+              return;
+            }
+            if (topic === MQTT_TOPIC_DICE_SYNC && packet.logLine) {
+              appendDiceLog(packet.logLine);
+            }
+          } catch (err) {}
+        });
+      } catch (e) {}
+    }
+
+    function publishTabletopState(reason = 'UPDATE') {
+      if (!window.mqttClient || !window.mqttClient.connected) return;
+      const copy = JSON.parse(JSON.stringify(state));
+      if (copy.bg) copy.bg.dataUrl = state.bg.mqttDataUrl || null;
+      window.mqttClient.publish(MQTT_TOPIC_ZONA_SYNC, JSON.stringify({ sender: clientId, type: 'TABLETOP_SYNC', reason, payload: copy }));
+    }
+
+    function publishDiceEvent(data) {
+      if (!window.mqttClient || !window.mqttClient.connected) return;
+      window.mqttClient.publish(MQTT_TOPIC_DICE_SYNC, JSON.stringify(Object.assign({ sender: clientId, timestamp: Date.now() }, data)));
+    }
+
+    function downloadUpdatedHtml() {
+      if (!isGM) return;
+      try {
+        const holder = document.getElementById('embedded-zona-state');
+        if (holder) holder.textContent = JSON.stringify(state);
+        const blob = new Blob(['<!DOCTYPE html>\n' + document.documentElement.outerHTML], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'ZONA.html';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) {}
+    }
+
+    window.addEventListener('DOMContentLoaded', initZonaApp);
+  </script>
+</body>
+</html>
