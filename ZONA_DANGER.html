@@ -1,0 +1,3573 @@
+<!DOCTYPE html>
+<html lang="uk" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ЕНТРОПІЯ — Внутрішній Простір Структури (ZONA_DANGER.html)</title>
+
+  <!-- 1. ПІДКЛЮЧЕННЯ МОСТА ЕНТРОПІЇ -->
+  <script src="entropia_bridge.js"></script>
+
+  <!-- Tailwind CSS, FontAwesome та MQTT -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg-dark: #0b0e14;
+      --bg-glass: #121722;
+      --accent-emerald: #10b981;
+      --accent-cyan: #22d3ee;
+    }
+    body {
+      background-color: var(--bg-dark);
+      color: #e2e8f0;
+      font-family: 'Inter', sans-serif;
+      overflow: hidden;
+      user-select: none;
+    }
+    body:not(.is-gm) .gm-only {
+      display: none !important;
+    }
+    body.is-gm .player-only {
+      display: none !important;
+    }
+    .font-mono-tech { font-family: 'JetBrains Mono', monospace; }
+    .glass-panel {
+      background: rgba(18, 23, 34, 0.94);
+      backdrop-filter: blur(14px);
+    }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: #0b0e14; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #10b981; }
+    .mode-active {
+      background: rgba(16, 185, 129, 0.18) !important;
+      border-color: #10b981 !important;
+      color: #10b981 !important;
+      box-shadow: 0 0 12px rgba(16, 185, 129, 0.25);
+    }
+    .tool-active {
+      background: rgba(34, 211, 238, 0.2) !important;
+      border-color: #22d3ee !important;
+      color: #22d3ee !important;
+      box-shadow: 0 0 10px rgba(34, 211, 238, 0.3);
+    }
+    .stat-card-active {
+      background: rgba(16, 185, 129, 0.22) !important;
+      border-color: #10b981 !important;
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.25);
+    }
+    .skill-chip-active {
+      background: rgba(34, 211, 238, 0.22) !important;
+      border-color: #22d3ee !important;
+      color: #67e8f9 !important;
+    }
+    @keyframes diePop {
+      0% { transform: scale(0.6) rotate(-12deg); opacity: 0; }
+      70% { transform: scale(1.06) rotate(2deg); opacity: 1; }
+      100% { transform: scale(1) rotate(0deg); opacity: 1; }
+    }
+    .vitruvia-die-anim { animation: diePop 0.26s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+    .half-party-symbol { clip-path: polygon(0 0, 50% 0, 50% 100%, 0 100%); }
+    input[type="range"] { accent-color: #10b981; }
+  </style>
+</head>
+<body class="h-screen w-screen flex flex-col bg-[#0b0e14] text-slate-200">
+
+  <!-- ВЕРХНЯ ПАНЕЛЬ (HEADER) -->
+  <header class="h-14 bg-[#121722] border-b border-slate-800/90 px-3 md:px-4 flex items-center justify-between shrink-0 z-30 gap-2">
+    <div class="flex items-center gap-2.5 min-w-0">
+      <button id="btnToggleLeftSidebar" onclick="toggleLeftSidebar()" class="gm-only px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition flex items-center gap-1.5 shrink-0" title="Показати / Сховати панель Архітектора">
+        <i class="fa-solid fa-table-columns"></i>
+        <span class="hidden sm:inline">Простір</span>
+      </button>
+
+      <div class="flex items-center gap-2 text-sm md:text-base font-semibold truncate">
+        <span id="breadcrumbSector" class="text-emerald-400 font-mono-tech shrink-0">Сектор I</span>
+        <i class="fa-solid fa-chevron-right text-[10px] text-slate-600"></i>
+        <span id="breadcrumbZoneTitle" class="text-slate-100 truncate">Біокупол «Едем-Альфа»</span>
+        <button onclick="editStructureTitle()" class="gm-only text-xs px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-400 transition shrink-0" title="Змінити назву локації">✏️</button>
+      </div>
+
+      <div class="hidden xl:flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900/90 border border-slate-800 text-xs font-mono-tech shrink-0">
+        <span id="mqttDot" class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+        <span id="mqttStatusText" class="text-slate-400">MQTT: З'єднання...</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-2 shrink-0">
+      <div id="roleBadge" class="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs font-medium">
+        <span id="roleIcon">👁️</span>
+        <span id="roleLabel">Режим Гравця</span>
+      </div>
+
+      <button onclick="toggleVitruviaModal(true)" class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900/90 hover:bg-slate-800 border border-cyan-500/30 text-xs text-cyan-300 font-mono-tech transition" title="Відкрити кубики персонажа">
+        <span>👤</span>
+        <span id="charNameHeader" class="max-w-[130px] truncate">Дослідник</span>
+      </button>
+
+      <button id="btnAdminAuth" onclick="handleAdminAuthClick()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-medium text-slate-300 transition flex items-center gap-1.5">
+        <span>🔒</span>
+        <span id="adminBtnText" class="hidden md:inline">Вхід Адміна</span>
+      </button>
+
+      <button id="btnVitruviaWidget" onclick="toggleVitruviaModal()" class="px-3 py-1.5 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-300 text-xs font-semibold transition flex items-center gap-1.5 shadow-sm">
+        <span>💠</span>
+        <span class="hidden sm:inline">Стіл Кубиків «Вітрувія»</span>
+      </button>
+
+      <button onclick="handleReturnToSectorClick()" class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-rose-950/60 border border-slate-700 hover:border-rose-500/50 text-slate-200 text-xs font-semibold transition flex items-center gap-1.5">
+        <span>⬅️</span>
+        <span class="hidden md:inline">Назад у Сектор</span>
+      </button>
+
+      <button id="btnToggleRightSidebar" onclick="toggleRightSidebar()" class="px-2.5 py-1.5 rounded-lg bg-slate-800/90 hover:bg-slate-700 border border-cyan-500/40 text-cyan-300 text-xs font-semibold transition flex items-center gap-1.5" title="Показати / Сховати праву панель">
+        <i class="fa-solid fa-sliders"></i>
+        <span id="rightToggleBtnText" class="hidden sm:inline">Персонаж</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ОСНОВНИЙ РОБОЧИЙ ПРОСТІР -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- ЛІВА БОКОВА ПАНЕЛЬ — «ПРОСТІР» (СУВОРО ТІЛЬКИ ДЛЯ МАЙСТРА) -->
+    <aside id="leftSidebar" class="gm-only w-80 bg-[#121722] border-r border-slate-800/90 flex flex-col shrink-0 z-20 select-none">
+      <div class="px-3.5 py-2.5 border-b border-slate-800 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+          <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Архітектор Структури (GM)</h2>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span id="structureSeedBadge" class="text-[10px] font-mono-tech text-cyan-400 bg-cyan-950/60 px-2 py-0.5 rounded border border-cyan-800/50">SEED</span>
+          <button onclick="toggleLeftSidebar(false)" class="text-slate-400 hover:text-white px-1 text-xs" title="Згорнути панель">✕</button>
+        </div>
+      </div>
+
+      <div class="flex-1 flex overflow-hidden">
+        <div class="w-20 bg-[#0b0e14]/90 border-r border-slate-800/80 p-1.5 flex flex-col gap-1.5 text-[11px]">
+          <button id="modeBtn_struct" onclick="selectSpaceMode('struct')" class="mode-active py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">🏛️</span><span class="font-medium">Об'єкт</span>
+          </button>
+          <button id="modeBtn_grid" onclick="selectSpaceMode('grid')" class="py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">▦</span><span class="font-medium">Сітка</span>
+          </button>
+          <button id="modeBtn_walls" onclick="selectSpaceMode('walls')" class="py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">🧱</span><span class="font-medium">Межі</span>
+          </button>
+          <button id="modeBtn_zones" onclick="selectSpaceMode('zones')" class="py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">🏷️</span><span class="font-medium">Зони</span>
+          </button>
+          <button id="modeBtn_bg" onclick="selectSpaceMode('bg')" class="py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">🖼️</span><span class="font-medium">Фон</span>
+          </button>
+          <button id="modeBtn_tokens" onclick="selectSpaceMode('tokens')" class="py-2 px-1 rounded-xl border border-slate-800 bg-slate-900/70 hover:bg-slate-800 flex flex-col items-center gap-1 transition">
+            <span class="text-base">👤</span><span class="font-medium">Токени</span>
+          </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+          <!-- 0. 🏛️ АРХІТЕКТОР СТРУКТУРИ -->
+          <div id="spacePanel_struct" class="space-y-3">
+            <div class="font-bold text-emerald-400 flex items-center justify-between">
+              <span>🏛️ Канонічна Локація</span>
+              <span class="text-[10px] font-mono-tech text-cyan-300">🔒 Закріплено</span>
+            </div>
+
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2.5">
+              <div>
+                <label class="text-[10px] text-slate-400 block mb-1">Швидкий перехід між структурами Сектора I:</label>
+                <select id="presetStructureSelect" onchange="switchCanonicalPreset(this.value)" class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-cyan-300 font-medium">
+                  <optgroup label="🗼 Головна Вежа Сектора (13 поверхів вгору)">
+                    <option value="m_beacon_0_1792183459827">🗼 Маяк Архангела I (Рафаїль) — 13 поверхів</option>
+                  </optgroup>
+                  <optgroup label="🏛️ Глобальні Комплекси Ковчега (Наземний + 5 підземних)">
+                    <option value="ruin_1792186421282_8494">🏛️ Релейний санктуарій «Δ-82» (Храм-серверна)</option>
+                    <option value="ruin_1792186416451_4254">⚙️ Конвеєрний ангар «E-44» (Промзона)</option>
+                    <option value="ruin_1792186416452_388">🏛️ Вузол синхронізації «E-61» (Серверний храм)</option>
+                    <option value="ruin_1792186416451_586">🛡️ Артилерійський двір «Δ-33» (Бастіон)</option>
+                  </optgroup>
+                  <optgroup label="🌿 6 Унікальних Круглих Біокуполів (Ярус 1 + Рівень -1)">
+                    <option value="gh_eden_alpha">🌿 Біокупол «Едем-Альфа» (Дзеркальне Озеро)</option>
+                    <option value="gh_lotus_south">🪷 Гідро-оранжерея «Лотос-3» (Затоплена + Канали)</option>
+                    <option value="gh_spore_west">🍄 Споровий павільйон «Міцелій-7» (Грибні гроти)</option>
+                    <option value="gh_nectar_east">🐾 Ботанічна ротонда «Нектар» (Вольєри + Віварій)</option>
+                    <option value="gh_seed_vault">❄️ Кріо-сховище насіння «Генезис» (Генний сейф)</option>
+                    <option value="gh_quarantine_nw">☣️ Ізолятор «Червона Роса» (Розлом Скверни)</option>
+                  </optgroup>
+                  <optgroup label="📍 Малі та вуличні локації за мітками">
+                    <option value="m_1792184642242_224">🚇 Вагон метро (Стартова естакада)</option>
+                    <option value="m_s1_gate_sector0">⛩️ Північна Брама Купола «СІЕЛЬ»</option>
+                    <option value="m_s1_lexicon_shrine">❖ Стела Першомови «Альфа-1»</option>
+                    <option value="m_s1_monorail_bridge">🌉 Оглядовий міст Акведука</option>
+                    <option value="m_s1_harbor_north">⚓ Північний Дренажний Пірс</option>
+                    <option value="m_s1_automaton_depot">🤖 Депо дронів-садівників</option>
+                    <option value="m_s1_aura_grove">💎 Джерело Смарагдової Аури</option>
+                    <option value="m_s1_spore_breach">☣️ Тріщина Карантинного Периметра</option>
+                  </optgroup>
+                </select>
+              </div>
+
+              <div>
+                <label class="text-[10px] text-slate-400 block mb-1">Архітектурний Архетип:</label>
+                <select id="structArchetypeSelect" onchange="changeStructureArchetype(this.value)" class="w-full px-2 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-xs text-emerald-300 font-medium">
+                  <option value="archangel_tower">🗼 Вежа Маяка Архангела (13 поверхів вгору)</option>
+                  <option value="global_code_complex">🏛️ Глобальний Комплекс Δ/E (1 + 5 мінус-рівнів)</option>
+                  <option value="round_biodome">🌿 Круглий Біокупол (Унікальний за темою)</option>
+                  <option value="outdoor_metro_hub">🚇 Естакада Вагона Метро</option>
+                  <option value="outdoor_ciel_gate">⛩️ Північна Брама Купола «СІЕЛЬ»</option>
+                  <option value="outdoor_stele_plaza">❖ Перехрестя Стели Першомови</option>
+                  <option value="outdoor_aqueduct_bridge">🌉 Дворівневий Міст Акведука</option>
+                  <option value="outdoor_drainage_pier">⚓ Північний Дренажний Пірс</option>
+                  <option value="outdoor_drone_depot">🤖 Зарядне Депо Дронів-Садівників</option>
+                  <option value="outdoor_aura_spring">💎 Ставок Смарагдової Аури</option>
+                  <option value="outdoor_perimeter_breach">☣️ Пролом Карантинної Стіни</option>
+                </select>
+              </div>
+
+              <div class="grid grid-cols-1 gap-1.5 pt-1">
+                <button onclick="regenerateCurrentStructure(false)" class="py-2 px-2.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 font-semibold transition flex items-center justify-center gap-1.5">
+                  <span>🔄</span> <span>Канонічний план цієї структури</span>
+                </button>
+                <button onclick="regenerateCurrentStructure(true)" class="py-2 px-2.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/40 text-cyan-300 font-semibold transition flex items-center justify-center gap-1.5">
+                  <span>🎲</span> <span>Інша варіація наповнення</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 1. ▦ СІТКА -->
+          <div id="spacePanel_grid" class="hidden space-y-3">
+            <div class="font-bold text-emerald-400 flex items-center justify-between">
+              <span>▦ Параметри Сітки</span>
+              <span id="gridSizeLabel" class="font-mono-tech text-slate-200">30×30</span>
+            </div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2.5">
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Розмір сітки (16×16 – 36×36)</span></div>
+                <input id="inputGridCount" type="range" min="16" max="36" value="30" oninput="updateGridConfig()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+              </div>
+              <div>
+                <div class="flex justify-between text-[11px] text-slate-400 mb-1"><span>Прозорість ліній</span><span id="gridOpacityLabel" class="font-mono-tech">25%</span></div>
+                <input id="inputGridOpacity" type="range" min="5" max="90" value="25" oninput="updateGridConfig()" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. 🧱 МЕЖІ -->
+          <div id="spacePanel_walls" class="hidden space-y-3">
+            <div class="font-bold text-amber-400">🧱 Редактор Стін та Ландшафту</div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2">
+              <button id="btnWallBlock" onclick="setActiveTool('wall_cell')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left flex items-center gap-2 transition"><span>🧱</span> <span>Броньована стіна</span></button>
+              <button id="btnDoorCell" onclick="setActiveTool('door_cell')" class="w-full py-1.5 px-2.5 rounded-lg bg-cyan-950/50 hover:bg-cyan-900/60 border border-cyan-700/50 text-cyan-300 text-left flex items-center gap-2 transition"><span>🚪</span> <span>Гермошлюз / Двері</span></button>
+              <button id="btnFloorCell" onclick="setActiveTool('floor_cell')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-left flex items-center gap-2 transition"><span>⬜</span> <span>Плити підлоги / Міст</span></button>
+              <div class="text-[11px] text-slate-400 font-medium pt-1">Природа та Аномалії:</div>
+              <button id="btnHazardSpores" onclick="selectHazardBrush('spores')" class="w-full py-1.5 px-2.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/50 border border-rose-700/50 text-rose-300 text-left flex items-center gap-2 transition"><span>☣️</span> <span>Спори Скверни</span></button>
+              <button id="btnHazardFire" onclick="selectHazardBrush('fire')" class="w-full py-1.5 px-2.5 rounded-lg bg-orange-950/40 hover:bg-orange-900/50 border border-orange-700/50 text-orange-300 text-left flex items-center gap-2 transition"><span>🔥</span> <span>Плазма / Вогонь</span></button>
+              <button id="btnHazardAcid" onclick="selectHazardBrush('acid')" class="w-full py-1.5 px-2.5 rounded-lg bg-lime-950/40 hover:bg-lime-900/50 border border-lime-700/50 text-lime-300 text-left flex items-center gap-2 transition"><span>🧪</span> <span>Біо-реактив / Кислота</span></button>
+              <button id="btnEraseCell" onclick="setActiveTool('erase_cell')" class="w-full py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition mt-1">🧹 Пробити прохід / Очистити</button>
+            </div>
+          </div>
+
+          <!-- 3. 🏷️ ЗОНИ -->
+          <div id="spacePanel_zones" class="hidden space-y-3">
+            <div class="font-bold text-emerald-400">🏷️ Тактичні Рамки Майстра</div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2.5">
+              <p class="text-[11px] text-slate-400 leading-relaxed">Об'єкти на карті не мають підписів. Якщо потрібно виділити зону для гравців вручну:</p>
+              <button id="btnActivateZoneTool" onclick="setActiveTool('zone')" class="w-full py-2 px-3 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 font-semibold transition">➕ Виділити ділянку</button>
+              <button onclick="removeLastZone()" class="w-full py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-rose-950/60 border border-slate-700 text-slate-400 hover:text-rose-300 transition">🗑️ Стерти зону</button>
+            </div>
+          </div>
+
+          <!-- 4. 🖼️ ФОН -->
+          <div id="spacePanel_bg" class="hidden space-y-3">
+            <div class="font-bold text-cyan-400">🖼️ Власна Підкладка</div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2.5">
+              <label class="block w-full py-2 px-2.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/50 text-emerald-300 text-center cursor-pointer font-semibold transition">
+                <i class="fa-solid fa-upload mr-1"></i> Завантажити зображення з ПК
+                <input type="file" accept="image/*" class="hidden" onchange="handleBgUploadFromPC(event)">
+              </label>
+              <button onclick="clearCustomBg()" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 transition">Повернути векторну структуру</button>
+            </div>
+          </div>
+
+          <!-- 5. 👤 ШВИДКІ ТОКЕНИ ВОРОГІВ -->
+          <div id="spacePanel_tokens" class="hidden space-y-3">
+            <div class="font-bold text-emerald-400">👤 Додати Токен Істоти / НПС</div>
+            <div class="p-2.5 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-1.5">
+              <button onclick="spawnQuickToken('automaton')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-between"><span>🤖 Автоматон</span><span class="text-[10px] font-mono-tech text-cyan-400">Токен</span></button>
+              <button onclick="spawnQuickToken('predator')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-between"><span>☣️ Хижак Скверни</span><span class="text-[10px] font-mono-tech text-rose-400">Токен</span></button>
+              <button onclick="spawnQuickToken('boss')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-between"><span>🛡️ Вартовий (2×2)</span><span class="text-[10px] font-mono-tech text-amber-400">Бос</span></button>
+              <button onclick="spawnQuickToken('npc')" class="w-full py-1.5 px-2.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-700 flex items-center justify-between"><span>👤 НПС</span><span class="text-[10px] font-mono-tech text-emerald-400">Токен</span></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="p-3 border-t border-slate-800 bg-[#0d121b]">
+        <button onclick="downloadUpdatedHtml()" class="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-emerald-600 to-cyan-600 hover:from-emerald-500 hover:to-cyan-500 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-950/50 transition flex items-center justify-center gap-2">
+          <span>💾</span> <span>Оновити HTML</span>
+        </button>
+      </div>
+    </aside>
+
+    <!-- ЦЕНТРАЛЬНИЙ ТАКТИЧНИЙ CANVAS -->
+    <main id="canvasViewport" class="flex-1 relative bg-[#05070b] overflow-hidden flex items-center justify-center"
+          ondragover="handleCanvasDragOver(event)" ondrop="handleCanvasDrop(event)">
+      <canvas id="tacticalCanvas" class="cursor-crosshair block"></canvas>
+
+      <!-- Перемикач поверхів / ярусів -->
+      <div class="absolute top-3 left-3 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-xl glass-panel border border-slate-700/80 text-xs font-mono-tech shadow-lg">
+        <span id="floorCodeBadge" class="px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 font-bold">ЯРУС 1</span>
+        <span id="floorIndicator" class="text-slate-400">1/1</span>
+        <button onclick="changeFloorLayer(-1)" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" title="Попередній ярус / рівень">◀</button>
+        <button onclick="changeFloorLayer(1)" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 transition" title="Наступний ярус / рівень">▶</button>
+        <button onclick="addFloorLayer()" class="gm-only px-1.5 py-0.5 rounded bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 transition" title="Додати поверх / ярус">+</button>
+      </div>
+
+      <!-- Індикатор координати квадрата -->
+      <div class="absolute top-3 right-3 z-20 px-3 py-1.5 rounded-xl glass-panel border border-slate-800 text-xs font-mono-tech text-slate-300">
+        Квадрат: <b id="hoverCoordText" class="text-emerald-400">А-1</b>
+      </div>
+
+      <!-- ПЛАВАЮЧИЙ НИЖНІЙ ТУЛБАР -->
+      <div class="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-2xl glass-panel border border-slate-700/80 shadow-2xl flex items-center gap-1.5 text-xs">
+        <button id="toolbarBtn_fog" onclick="toggleFogToolOrVisibility()" class="gm-only px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5" title="Туман війни (Майстер)">
+          <span>👁️</span> <span class="hidden md:inline">Туман</span>
+        </button>
+        <button id="toolbarBtn_grid" onclick="toggleGridLines()" class="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-emerald-500/40 text-emerald-300 transition flex items-center gap-1.5" title="Увімкнути / Вимкнути сітку">
+          <span>▦</span> <span class="hidden md:inline">Сітка</span>
+        </button>
+        <button onclick="resetCameraAndZoom()" class="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5" title="Центрувати поле">
+          <span>⛶</span> <span class="hidden md:inline">Центр</span>
+        </button>
+        <div class="h-4 w-px bg-slate-700 mx-0.5"></div>
+        <button id="toolbarBtn_ruler" onclick="setActiveTool('ruler')" class="px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5" title="Лінійка">
+          <span>📏</span> <span class="hidden md:inline">Лінійка</span>
+        </button>
+        <button id="toolbarBtn_select" onclick="setActiveTool('select')" class="tool-active px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5" title="Курсор переміщення">
+          <span>↖</span> <span class="hidden md:inline">Курсор</span>
+        </button>
+        <button id="toolbarBtn_text" onclick="setActiveTool('text')" class="gm-only px-2.5 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 transition flex items-center gap-1.5" title="Текстова мітка Майстра">
+          <span class="font-mono-tech font-bold">T</span> <span class="hidden md:inline">Мітка</span>
+        </button>
+        <div class="h-4 w-px bg-slate-700 mx-0.5"></div>
+        <button onclick="stepZoom(-0.15)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono-tech font-bold">−</button>
+        <span id="zoomLabel" class="px-2 font-mono-tech text-cyan-400 min-w-[48px] text-center">100%</span>
+        <button onclick="stepZoom(0.15)" class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 font-mono-tech font-bold">+</button>
+      </div>
+
+      <!-- ПЕРЕСУВНИЙ СТІЛ КУБИКІВ «ВІТРУВІЯ» ЗІ ЗНАКОМ ПАРТІЇ 💠 -->
+      <div id="vitruviaModal" style="top: 64px; left: 24px;" class="hidden fixed z-40 w-[360px] sm:w-[440px] max-h-[calc(100vh-80px)] flex flex-col rounded-2xl glass-panel border border-emerald-500/60 shadow-2xl text-xs">
+        <div id="vitruviaDragHandle" class="px-4 py-2.5 bg-slate-900/95 border-b border-slate-800 rounded-t-2xl flex items-center justify-between cursor-move select-none shrink-0">
+          <div class="flex items-center gap-2 font-bold text-emerald-400 text-sm">
+            <span>💠</span>
+            <span>Стіл Кубиків «Вітрувія»</span>
+            <span class="text-[10px] font-mono-tech text-slate-500 font-normal">(тягни)</span>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button onclick="refreshCharacterFromBridge(true)" class="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[10px] font-mono-tech" title="Перечитати дані з Листа Персонажа">
+              🔄 Лист
+            </button>
+            <button onclick="toggleVitruviaMinimize()" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-300">—</button>
+            <button onclick="toggleVitruviaModal(false)" class="px-1.5 py-0.5 rounded bg-slate-800 hover:bg-rose-900/70 text-slate-300 hover:text-white">✕</button>
+          </div>
+        </div>
+
+        <div id="vitruviaModalBody" class="p-3.5 space-y-3 overflow-y-auto">
+          <div class="p-2.5 rounded-xl bg-slate-900/95 border border-slate-800 flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <div class="text-[10px] text-slate-400">Персонаж:</div>
+              <div id="vitruviaCharNameLabel" class="font-bold text-cyan-300 text-sm truncate">Дослідник</div>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-[10px] text-slate-400">Пул кидка:</div>
+              <div id="vitruviaPoolFormula" class="font-mono-tech font-bold text-emerald-400 text-xs">3 куб.</div>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">1. Характеристики з Листа:</span>
+              <span id="selectedStatBadge" class="text-[11px] font-mono-tech text-emerald-400 font-bold">⚔️ Бій: 3</span>
+            </div>
+            <div id="vitruviaStatsGrid" class="grid grid-cols-2 sm:grid-cols-3 gap-1.5"></div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-slate-300 uppercase tracking-wider">2. Навички та Модифікатор:</span>
+              <button onclick="resetSkillAndMod()" class="text-[10px] text-slate-400 hover:text-rose-300">Скинути мод.</button>
+            </div>
+
+            <div id="vitruviaSkillsRow" class="flex flex-wrap gap-1 max-h-24 overflow-y-auto p-1.5 rounded-lg bg-slate-950/60 border border-slate-800/80"></div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1">
+              <div class="p-2 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
+                <span class="text-[11px] text-slate-400">Модифікатор:</span>
+                <div class="flex items-center gap-1 font-mono-tech">
+                  <button onclick="adjustManualDiceMod(-1)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold">−</button>
+                  <span id="manualModValue" class="w-7 text-center font-bold text-cyan-300">+0</span>
+                  <button onclick="adjustManualDiceMod(1)" class="w-6 h-6 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold">+</button>
+                </div>
+              </div>
+
+              <div class="p-2 rounded-xl bg-emerald-950/30 border border-emerald-500/40 flex items-center justify-between">
+                <span class="text-[11px] text-emerald-200 font-medium">Всього кубів:</span>
+                <div class="flex items-center gap-1 font-mono-tech">
+                  <button onclick="adjustTotalPoolDirectly(-1)" class="w-6 h-6 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold">−</button>
+                  <span id="finalDicePoolCount" class="w-7 text-center font-bold text-emerald-400 text-sm">3</span>
+                  <button onclick="adjustTotalPoolDirectly(1)" class="w-6 h-6 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 font-bold">+</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="px-3 py-1.5 rounded-xl bg-slate-950/90 border border-slate-800/90 flex items-center justify-between text-[10px] text-slate-400 font-mono-tech">
+            <span class="text-emerald-300">💠 Повний = <b>2 очки</b> (1/6)</span>
+            <span class="text-cyan-300">½💠 Пів знака = <b>1 очко</b> (2/6)</span>
+            <span class="text-slate-500">◇ Пуста = <b>0</b> (3/6)</span>
+          </div>
+
+          <button onclick="rollVitruviaTabletop()" class="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-bold text-xs shadow-lg shadow-emerald-950/50 transition flex items-center justify-center gap-2">
+            <span>💠</span>
+            <span id="rollButtonActionText">Кинути 3 Кубики «Вітрувія»</span>
+          </button>
+
+          <div class="p-3 rounded-xl bg-[#070a0f] border border-slate-800 space-y-2.5">
+            <div class="flex items-center justify-between border-b border-slate-800/80 pb-2">
+              <div>
+                <div id="rollResultTitle" class="text-[11px] text-slate-400">Результат кидка:</div>
+                <div id="rollBreakdownText" class="text-[10px] font-mono-tech text-slate-500">Оберіть характеристику та киньте куби</div>
+              </div>
+              <div class="text-right">
+                <span id="rollTotalPointsBadge" class="px-3 py-1 rounded-xl bg-emerald-500/20 border border-emerald-500/50 font-mono-tech font-bold text-emerald-300 text-sm">0 очок</span>
+              </div>
+            </div>
+            <div id="vitruviaDiceFacesRow" class="flex flex-wrap gap-2 min-h-[58px] items-center justify-center py-1">
+              <span class="text-[11px] text-slate-600">Грані кубиків 💠 з'являться тут після кидка</span>
+            </div>
+          </div>
+
+          <div class="space-y-1">
+            <div class="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-400 font-semibold">
+              <span>Журнал кидків столу (MQTT):</span>
+              <button onclick="clearDiceLog()" class="text-slate-500 hover:text-slate-300 lowercase font-normal">очистити</button>
+            </div>
+            <div id="vitruviaRollLog" class="h-28 overflow-y-auto rounded-xl bg-slate-950/90 border border-slate-800 p-2 space-y-1.5 font-mono-tech text-[11px]">
+              <div class="text-slate-500">Готовий до кидків за системою «Вітрувій» 💠...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ПРАВА ПАНЕЛЬ — КАРТКА ПЕРСОНАЖА (ГРАВЕЦЬ) / КАТАЛОГ ОБ'ЄКТІВ (GM) -->
+    <aside id="rightSidebar" class="w-80 bg-[#121722] border-l border-slate-800/90 flex flex-col shrink-0 z-20 select-none">
+
+      <!-- 1. ПАНЕЛЬ ДОСЛІДНИКА (ВИДИМА ТІЛЬКИ ГРАВЦЮ) -->
+      <div id="playerRightView" class="player-only flex-1 flex flex-col overflow-hidden">
+        <div class="px-3.5 py-2.5 border-b border-slate-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Панель Дослідника</h2>
+          </div>
+          <button onclick="toggleRightSidebar(false)" class="text-slate-400 hover:text-white px-1 text-xs" title="Згорнути панель">✕</button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+          <div class="p-3 rounded-xl bg-[#0b0e14] border border-cyan-500/40 space-y-2.5">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] font-mono-tech uppercase text-cyan-400">👤 Лист Персонажа</span>
+              <button onclick="refreshCharacterFromBridge(true)" class="text-[10px] text-emerald-400 hover:underline">🔄 Оновити з Листа</button>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <div id="playerAvatarBox" class="w-11 h-11 rounded-xl bg-slate-900 border border-cyan-500/50 flex items-center justify-center text-lg shrink-0 overflow-hidden">🚶</div>
+              <div class="min-w-0 flex-1">
+                <div id="playerSheetName" class="font-bold text-slate-100 text-sm truncate">Дослідник</div>
+                <div class="text-[11px] text-slate-400 font-mono-tech">
+                  ❤️ <span id="playerSheetHp" class="text-emerald-400">100/100</span> • 🛡️ <span id="playerSheetShield" class="text-cyan-400">20</span>
+                </div>
+              </div>
+            </div>
+
+            <button onclick="placeOrMoveMyToken()" class="w-full py-2 px-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold transition flex items-center justify-center gap-1.5 shadow">
+              <span>🚶</span> <span>Поставити / Перемістити мою фішку</span>
+            </button>
+          </div>
+
+          <div class="p-3 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2">
+            <div class="font-semibold text-slate-300">💠 Характеристики (клік — кидок):</div>
+            <div id="playerSidebarStatsList" class="grid grid-cols-2 gap-1.5"></div>
+          </div>
+
+          <div id="playerSidebarSkillsBox" class="p-3 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2">
+            <div class="font-semibold text-slate-300">🛠️ Навички з Листа Персонажа:</div>
+            <div id="playerSidebarSkillsList" class="flex flex-wrap gap-1"></div>
+          </div>
+
+          <div class="p-3 rounded-xl bg-[#0b0e14] border border-slate-800 space-y-2">
+            <div class="font-semibold text-slate-300">🧭 Інструменти</div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <button onclick="setActiveTool('select')" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition flex items-center justify-center gap-1"><span>↖</span> <span>Курсор</span></button>
+              <button onclick="setActiveTool('ruler')" class="py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition flex items-center justify-center gap-1"><span>📏</span> <span>Лінійка</span></button>
+            </div>
+            <button onclick="toggleVitruviaModal(true)" class="w-full py-2 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/50 text-emerald-300 font-semibold transition flex items-center justify-center gap-1.5">
+              <span>💠</span> <span>Відкрити Стіл Кубиків «Вітрувія»</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. ПАНЕЛЬ КАТАЛОГУ ТА ОБ'ЄКТІВ (СУВОРО ТІЛЬКИ ДЛЯ МАЙСТРА) -->
+      <div id="gmRightView" class="gm-only flex-1 flex flex-col overflow-hidden">
+        <div class="p-3 border-b border-slate-800 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+              <h2 class="text-xs font-bold uppercase tracking-wider text-slate-200">Каталог Архітектора</h2>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button onclick="placeOrMoveMyToken()" class="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30 font-medium">🚶 Моя фішка</button>
+              <button onclick="toggleRightSidebar(false)" class="text-slate-400 hover:text-white px-1 text-xs" title="Згорнути панель">✕</button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-1 p-1 rounded-xl bg-[#0b0e14] border border-slate-800 text-xs">
+            <button id="catTab_general" onclick="switchCatalogTab('general')" class="py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold transition">Векторні Об'єкти</button>
+            <button id="catTab_personal" onclick="switchCatalogTab('personal')" class="py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition">Власні</button>
+          </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-3 space-y-3 text-xs">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Елементи Інтер'єру</span>
+              <span class="text-[10px] text-slate-500">Клік або Drag&amp;Drop</span>
+            </div>
+            <div id="catalogGrid" class="grid grid-cols-2 gap-1.5"></div>
+          </div>
+
+          <div class="p-2.5 rounded-xl bg-[#0b0e14]/90 border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-semibold text-cyan-400 text-[11px]">📥 Завантажити картинку</span>
+              <div class="flex items-center gap-1 text-[10px] text-slate-400">
+                <span>Кл.:</span>
+                <input id="uploadCellsSize" type="number" min="1" max="8" value="1" class="w-10 px-1 py-0.5 rounded bg-slate-900 border border-slate-700 text-center font-mono-tech text-slate-200">
+              </div>
+            </div>
+            <div class="flex gap-1.5">
+              <label class="flex-1 py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-center cursor-pointer transition text-[11px] font-medium">
+                📁 PNG/JPG
+                <input type="file" accept="image/*" class="hidden" onchange="handleCustomObjectUpload(event)">
+              </label>
+              <button onclick="promptCustomObjectUrl()" class="flex-1 py-1.5 px-2 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 transition text-[11px] font-medium">🌐 За URL</button>
+            </div>
+          </div>
+
+          <div id="objectInspector" class="hidden p-3 rounded-xl bg-slate-900/95 border border-emerald-500/50 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="font-bold text-emerald-400">⚙️ Параметри елемента</span>
+              <button onclick="deleteSelectedEntity()" class="text-rose-400 hover:text-rose-300 text-xs">🗑️ Видалити</button>
+            </div>
+            <div class="grid grid-cols-3 gap-1.5">
+              <div class="col-span-2">
+                <label class="text-[10px] text-slate-400">Підпис (для Майстра)</label>
+                <input id="inspName" type="text" placeholder="Без підпису для гравців" oninput="applyInspectorChanges()" class="w-full px-2 py-1 rounded bg-slate-950 border border-slate-700 text-xs">
+              </div>
+              <div>
+                <label class="text-[10px] text-slate-400">Розмір</label>
+                <input id="inspCells" type="number" min="1" max="6" value="1" oninput="applyInspectorChanges()" class="w-full px-2 py-1 rounded bg-slate-950 border border-slate-700 text-xs font-mono-tech text-center">
+              </div>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="text-[10px] text-slate-400">Масштаб (<span id="inspScaleLabel">1.0</span>x)</label>
+                <input id="inspScale" type="range" min="0.5" max="2.5" step="0.1" value="1" oninput="applyInspectorChanges()" class="w-full">
+              </div>
+              <div>
+                <label class="text-[10px] text-slate-400">Поворот (<span id="inspRotLabel">0</span>°)</label>
+                <input id="inspRotation" type="range" min="0" max="360" step="15" value="0" oninput="applyInspectorChanges()" class="w-full">
+              </div>
+            </div>
+            <div class="pt-1 flex items-center justify-between border-t border-slate-800">
+              <label class="flex items-center gap-1.5 cursor-pointer text-[11px] text-amber-300">
+                <input id="inspHidden" type="checkbox" onchange="applyInspectorChanges()" class="rounded">
+                <span>🙈 Приховати</span>
+              </label>
+              <label class="flex items-center gap-1.5 cursor-pointer text-[11px] text-cyan-300">
+                <input id="inspShowLabel" type="checkbox" onchange="applyInspectorChanges()" class="rounded">
+                <span>🏷️ Показати назву</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="space-y-1.5">
+            <div class="flex items-center justify-between font-semibold text-slate-300">
+              <span>Об'єкти на ярусі: <span id="inSpaceCounter" class="text-emerald-400 font-mono-tech">0</span></span>
+              <button onclick="clearFloorEntities()" class="text-[10px] text-slate-500 hover:text-rose-400">Очистити</button>
+            </div>
+            <div id="inSpaceListContainer" class="space-y-1 max-h-56 overflow-y-auto pr-1"></div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- МОДАЛЬНЕ ВІКНО ВИХОДУ В СЕКТОР ДЛЯ МАЙСТРА -->
+  <div id="gmExitModal" class="hidden fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="w-full max-w-md rounded-2xl bg-[#121722] border border-slate-700 p-5 space-y-4 shadow-2xl">
+      <div class="flex items-center justify-between">
+        <h3 class="text-base font-bold text-slate-100">⬅️ Повернення у Сектор</h3>
+        <button onclick="closeGmExitModal()" class="text-slate-400 hover:text-white">✕</button>
+      </div>
+      <p class="text-xs text-slate-400 leading-relaxed">Карта цієї структури автоматично закріплена за її ID. Оберіть спосіб виходу:</p>
+      <div class="space-y-2">
+        <button onclick="executeReturnToSector(true)" class="w-full py-2.5 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition flex items-center justify-center gap-2">
+          <span>📡</span> <span>Повернути всю групу в Сектор (MQTT)</span>
+        </button>
+        <button onclick="executeReturnToSector(false)" class="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold text-xs transition flex items-center justify-center gap-2">
+          <span>🚶</span> <span>Вийти самому</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script id="embedded-zona-state" type="application/json">{}</script>
+
+  <script>
+    // =========================================================================
+    // 1. БАЗА ВСІХ КАНОНІЧНИХ СТРУКТУР СЕКТОРА I З SECTOR1.HTML
+    // =========================================================================
+    const SECTOR_1_CANON_DB = {
+      "m_beacon_0_1792183459827": {
+        id: "m_beacon_0_1792183459827",
+        title: "Маяк Архангела I (Рафаїль)",
+        archetype: "archangel_tower",
+        seed: 317001,
+        floorsCount: 13
+      },
+      "ruin_1792186421282_8494": {
+        id: "ruin_1792186421282_8494",
+        title: "Релейний санктуарій «Δ-82»",
+        archetype: "global_code_complex",
+        subType: "sanctum",
+        seed: 472697
+      },
+      "ruin_1792186416451_4254": {
+        id: "ruin_1792186416451_4254",
+        title: "Конвеєрний ангар «E-44»",
+        archetype: "global_code_complex",
+        subType: "industrial",
+        seed: 629867
+      },
+      "ruin_1792186416452_388": {
+        id: "ruin_1792186416452_388",
+        title: "Вузол синхронізації «E-61»",
+        archetype: "global_code_complex",
+        subType: "sanctum",
+        seed: 692820
+      },
+      "ruin_1792186416451_586": {
+        id: "ruin_1792186416451_586",
+        title: "Артилерійський двір «Δ-33»",
+        archetype: "global_code_complex",
+        subType: "bastion",
+        seed: 878404
+      },
+      "gh_eden_alpha": {
+        id: "gh_eden_alpha",
+        title: "Біокупол «Едем-Альфа»",
+        archetype: "round_biodome",
+        seed: 317101,
+        intactSectors: [true, true, false, true, true, false, true, true],
+        domeTheme: "eden"
+      },
+      "gh_lotus_south": {
+        id: "gh_lotus_south",
+        title: "Гідро-оранжерея «Лотос-3»",
+        archetype: "round_biodome",
+        seed: 317102,
+        intactSectors: [true, false, true, true, false, true, true, true],
+        domeTheme: "lotus"
+      },
+      "gh_spore_west": {
+        id: "gh_spore_west",
+        title: "Споровий павільйон «Міцелій-7»",
+        archetype: "round_biodome",
+        seed: 317103,
+        intactSectors: [false, true, true, false, true, true, false, true],
+        domeTheme: "spore"
+      },
+      "gh_nectar_east": {
+        id: "gh_nectar_east",
+        title: "Ботанічна ротонда «Нектар»",
+        archetype: "round_biodome",
+        seed: 317104,
+        intactSectors: [true, true, true, false, true, false, true, true],
+        domeTheme: "fauna"
+      },
+      "gh_seed_vault": {
+        id: "gh_seed_vault",
+        title: "Кріо-сховище насіння «Генезис»",
+        archetype: "round_biodome",
+        seed: 317105,
+        intactSectors: [true, true, true, true, false, true, true, false],
+        domeTheme: "cryo"
+      },
+      "gh_quarantine_nw": {
+        id: "gh_quarantine_nw",
+        title: "Ізолятор «Червона Роса»",
+        archetype: "round_biodome",
+        seed: 317106,
+        intactSectors: [false, false, true, false, true, false, true, true],
+        domeTheme: "corrupted"
+      },
+      "m_1792184642242_224": {
+        id: "m_1792184642242_224",
+        title: "Вагон метро (точка початку)",
+        archetype: "outdoor_metro_hub",
+        seed: 317201
+      },
+      "m_s1_gate_sector0": {
+        id: "m_s1_gate_sector0",
+        title: "Північна Брама Купола «СІЕЛЬ»",
+        archetype: "outdoor_ciel_gate",
+        seed: 317202
+      },
+      "m_s1_lexicon_shrine": {
+        id: "m_s1_lexicon_shrine",
+        title: "Стела Першомови «Альфа-1»",
+        archetype: "outdoor_stele_plaza",
+        seed: 317203
+      },
+      "m_s1_monorail_bridge": {
+        id: "m_s1_monorail_bridge",
+        title: "Оглядовий міст Акведука",
+        archetype: "outdoor_aqueduct_bridge",
+        seed: 317204
+      },
+      "m_s1_harbor_north": {
+        id: "m_s1_harbor_north",
+        title: "Північний Дренажний Пірс",
+        archetype: "outdoor_drainage_pier",
+        seed: 317205
+      },
+      "m_s1_automaton_depot": {
+        id: "m_s1_automaton_depot",
+        title: "Депо дронів-садівників",
+        archetype: "outdoor_drone_depot",
+        seed: 317206
+      },
+      "m_s1_aura_grove": {
+        id: "m_s1_aura_grove",
+        title: "Джерело Смарагдової Аури",
+        archetype: "outdoor_aura_spring",
+        seed: 317207
+      },
+      "m_s1_spore_breach": {
+        id: "m_s1_spore_breach",
+        title: "Тріщина Карантинного Периметра",
+        archetype: "outdoor_perimeter_breach",
+        seed: 317208
+      }
+    };
+
+    // =========================================================================
+    // 2. СИСТЕМА КУБИКІВ «ВІТРУВІЯ» (💠) ТА СЛОВНИК ХАРАКТЕРИСТИК З ЛИСТА
+    // =========================================================================
+    const VITRUVIA_DIE_FACES = [
+      { type: 'empty', points: 0 },
+      { type: 'empty', points: 0 },
+      { type: 'empty', points: 0 },
+      { type: 'half',  points: 1 },
+      { type: 'half',  points: 1 },
+      { type: 'full',  points: 2 }
+    ];
+
+    const STAT_DICTIONARY = {
+      strength: { name: 'Сила', icon: '💪' }, str: { name: 'Сила', icon: '💪' }, сила: { name: 'Сила', icon: '💪' }, міць: { name: 'Міць', icon: '💪' }, power: { name: 'Міць', icon: '💪' },
+      body: { name: 'Тілобудова', icon: '🛡️' }, physique: { name: 'Тілобудова', icon: '🛡️' }, constitution: { name: 'Тілобудова', icon: '🛡️' }, con: { name: 'Тілобудова', icon: '🛡️' }, тілобудова: { name: 'Тілобудова', icon: '🛡️' }, тіло: { name: 'Тіло', icon: '🛡️' },
+      agility: { name: 'Спритність', icon: '⚡' }, dexterity: { name: 'Спритність', icon: '⚡' }, dex: { name: 'Спритність', icon: '⚡' }, agi: { name: 'Спритність', icon: '⚡' }, спритність: { name: 'Спритність', icon: '⚡' }, ловкість: { name: 'Спритність', icon: '⚡' },
+      reflex: { name: 'Реакція', icon: '💨' }, reflexes: { name: 'Рефлекси', icon: '💨' }, reaction: { name: 'Реакція', icon: '💨' }, speed: { name: 'Швидкість', icon: '💨' }, реакція: { name: 'Реакція', icon: '💨' },
+      wellbeing: { name: 'Самопочуття', icon: '❤️' }, endurance: { name: 'Витривалість', icon: '❤️' }, vitality: { name: 'Життєстійкість', icon: '❤️' }, stamina: { name: 'Витривалість', icon: '❤️' }, самопочуття: { name: 'Самопочуття', icon: '❤️' }, витривалість: { name: 'Витривалість', icon: '❤️' },
+      combat: { name: 'Бій', icon: '⚔️' }, fight: { name: 'Бій', icon: '⚔️' }, melee: { name: 'Ближній бій', icon: '⚔️' }, attack: { name: 'Атака', icon: '⚔️' }, бій: { name: 'Бій', icon: '⚔️' },
+      shooting: { name: 'Стрільба', icon: '🎯' }, ranged: { name: 'Стрільба', icon: '🎯' }, accuracy: { name: 'Влучність', icon: '🎯' }, aim: { name: 'Влучність', icon: '🎯' }, стрільба: { name: 'Стрільба', icon: '🎯' },
+      perception: { name: 'Сприйняття', icon: '👁️' }, per: { name: 'Сприйняття', icon: '👁️' }, awareness: { name: 'Уважність', icon: '👁️' }, senses: { name: 'Чуття', icon: '👁️' }, intuition: { name: 'Інтуїція', icon: '👁️' }, сприйняття: { name: 'Сприйняття', icon: '👁️' }, увага: { name: 'Увага', icon: '👁️' },
+      intellect: { name: 'Інтелект', icon: '🧠' }, intelligence: { name: 'Інтелект', icon: '🧠' }, int: { name: 'Інтелект', icon: '🧠' }, mind: { name: 'Розум', icon: '🧠' }, logic: { name: 'Логіка', icon: '🧠' }, інтелект: { name: 'Інтелект', icon: '🧠' }, розум: { name: 'Розум', icon: '🧠' },
+      willpower: { name: 'Воля', icon: '💠' }, will: { name: 'Воля', icon: '💠' }, wisdom: { name: 'Мудрість', icon: '💠' }, wis: { name: 'Воля', icon: '💠' }, spirit: { name: 'Дух', icon: '💠' }, psyche: { name: 'Психіка', icon: '💠' }, воля: { name: 'Воля', icon: '💠' }, психіка: { name: 'Психіка', icon: '💠' },
+      charisma: { name: 'Харизма', icon: '🗣️' }, cha: { name: 'Харизма', icon: '🗣️' }, social: { name: 'Соціальність', icon: '🗣️' }, influence: { name: 'Вплив', icon: '🗣️' }, empathy: { name: 'Емпатія', icon: '🗣️' }, харизма: { name: 'Харизма', icon: '🗣️' }, вплив: { name: 'Вплив', icon: '🗣️' },
+      tech: { name: 'Техніка', icon: '🔧' }, technology: { name: 'Технології', icon: '🔧' }, engineering: { name: 'Інженерія', icon: '🔧' }, mechanics: { name: 'Механіка', icon: '🔧' }, craft: { name: 'Ремесло', icon: '🔧' }, техніка: { name: 'Техніка', icon: '🔧' }, інженерія: { name: 'Інженерія', icon: '🔧' },
+      medicine: { name: 'Медицина', icon: '💉' }, med: { name: 'Медицина', icon: '💉' }, healing: { name: 'Лікування', icon: '💉' }, медицина: { name: 'Медицина', icon: '💉' },
+      stealth: { name: 'Прихованість', icon: '🕶️' }, sneak: { name: 'Прихованість', icon: '🕶️' }, прихованість: { name: 'Прихованість', icon: '🕶️' },
+      survival: { name: 'Виживання', icon: '🧭' }, виживання: { name: 'Виживання', icon: '🧭' },
+      science: { name: 'Наука', icon: '📚' }, knowledge: { name: 'Знання', icon: '📚' }, lore: { name: 'Знання', icon: '📚' }, наука: { name: 'Наука', icon: '📚' },
+      luck: { name: 'Удача', icon: '🍀' }, удача: { name: 'Удача', icon: '🍀' },
+      entropy: { name: 'Ентропія', icon: '🌀' }, resonance: { name: 'Резонанс', icon: '🌀' }, ентропія: { name: 'Ентропія', icon: '🌀' }
+    };
+
+    const SKILL_NAME_TRANSLATIONS = {
+      athletics: 'Атлетика', acrobatics: 'Акробатика', melee: 'Ближній бій', brawl: 'Рукопашний бій',
+      shooting: 'Стрільба', firearms: 'Вогнепальна зброя', stealth: 'Прихованість', hacking: 'Хакінг',
+      electronics: 'Електроніка', mechanics: 'Механіка', engineering: 'Інженерія', craft: 'Ремесло',
+      medicine: 'Медицина', first_aid: 'Перша допомога', survival: 'Виживання', perception: 'Спостережливість',
+      investigation: 'Аналіз', insight: 'Проникливість', persuasion: 'Переконання', deception: 'Обман',
+      intimidation: 'Залякування', leadership: 'Лідерство', lore: 'Знання Ковчега', science: 'Наука',
+      occult: 'Окультизм', entropy: 'Контроль Ентропії', piloting: 'Пілотування', dodge: 'Ухилення'
+    };
+
+    function resolveStatMeta(rawKey, rawLabel, rawIcon) {
+      const cleanKey = String(rawKey || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+      const cleanLabel = String(rawLabel || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+      const match = STAT_DICTIONARY[cleanKey] || STAT_DICTIONARY[cleanLabel];
+
+      let finalName = rawLabel || rawKey || 'Характеристика';
+      if (match && (!rawLabel || /^[a-z0-9_-]+$/i.test(String(rawLabel)))) {
+        finalName = match.name;
+      } else if (SKILL_NAME_TRANSLATIONS[cleanKey]) {
+        finalName = SKILL_NAME_TRANSLATIONS[cleanKey];
+      }
+
+      let finalIcon = rawIcon || (match ? match.icon : null);
+      if (!finalIcon) finalIcon = '💠';
+      return { name: finalName, icon: finalIcon };
+    }
+
+    function translateSkillName(rawName) {
+      const clean = String(rawName || '').trim();
+      const key = clean.toLowerCase().replace(/[\s-]+/g, '_');
+      return SKILL_NAME_TRANSLATIONS[key] || STAT_DICTIONARY[key]?.name || clean;
+    }
+
+    const FALLBACK_STATS = [
+      { key: 'combat', name: 'Бій', icon: '⚔️', value: 3 },
+      { key: 'shooting', name: 'Стрільба', icon: '🎯', value: 3 },
+      { key: 'agility', name: 'Спритність', icon: '⚡', value: 3 },
+      { key: 'body', name: 'Тілобудова', icon: '🛡️', value: 3 },
+      { key: 'wellbeing', name: 'Самопочуття', icon: '❤️', value: 3 },
+      { key: 'perception', name: 'Сприйняття', icon: '👁️', value: 3 },
+      { key: 'intellect', name: 'Інтелект', icon: '🧠', value: 3 },
+      { key: 'tech', name: 'Техніка', icon: '🔧', value: 2 },
+      { key: 'willpower', name: 'Воля', icon: '💠', value: 3 }
+    ];
+
+    (function ensureEntropiaBridge() {
+      const params = new URLSearchParams(window.location.search);
+      const defaultBridge = {
+        _gmOverride: null,
+        isGM() {
+          if (typeof this._gmOverride === 'boolean') return this._gmOverride;
+          const urlRole = params.get('role');
+          if (urlRole) return ['gm', 'master', 'admin', 'майстер'].includes(urlRole.toLowerCase());
+          return false;
+        },
+        getCharacter() {
+          let stored = {};
+          try {
+            const keysToTry = ['entropia_character_sheet', 'entropia_active_character', 'vitruvia_character_sheet', 'character_sheet', 'entropia_char_data'];
+            for (const k of keysToTry) {
+              const raw = localStorage.getItem(k) || sessionStorage.getItem(k);
+              if (raw) {
+                const parsed = JSON.parse(raw);
+                if (parsed && typeof parsed === 'object') stored = Object.assign(stored, parsed);
+              }
+            }
+          } catch (e) {}
+          const isMaster = this.isGM();
+          return Object.assign({
+            name: params.get('char') || stored.name || stored.charName || sessionStorage.getItem('entropia_char_name') || localStorage.getItem('entropia_char_name') || (isMaster ? 'Архітектор' : 'Дослідник'),
+            avatar: params.get('avatar') || stored.avatar || stored.avatarUrl || null,
+            hp: stored.hp || stored.health || '100/100',
+            shield: stored.shield || stored.armor || '20'
+          }, stored);
+        },
+        verifyAdminPassword(pwd) {
+          if (!pwd) return false;
+          return ['ентропія', 'entropia', 'admin', 'вавилонія'].includes(String(pwd).trim().toLowerCase());
+        },
+        rollVitruvia(options = {}) {
+          const poolCount = Math.max(1, Math.min(25, Number(options.pool || options.diceCount || 3)));
+          const faces = [];
+          let totalPoints = 0, fullCount = 0, halfCount = 0, emptyCount = 0;
+          for (let i = 0; i < poolCount; i++) {
+            const f = VITRUVIA_DIE_FACES[Math.floor(Math.random() * 6)];
+            faces.push(f);
+            totalPoints += f.points;
+            if (f.type === 'full') fullCount++;
+            else if (f.type === 'half') halfCount++;
+            else emptyCount++;
+          }
+          return { poolCount, totalPoints, fullCount, halfCount, emptyCount, faces };
+        }
+      };
+
+      if (!window.EntropiaBridge) window.EntropiaBridge = defaultBridge;
+      else {
+        if (typeof window.EntropiaBridge.isGM !== 'function') window.EntropiaBridge.isGM = defaultBridge.isGM.bind(defaultBridge);
+        if (typeof window.EntropiaBridge.getCharacter !== 'function') window.EntropiaBridge.getCharacter = defaultBridge.getCharacter.bind(defaultBridge);
+        if (typeof window.EntropiaBridge.verifyAdminPassword !== 'function') window.EntropiaBridge.verifyAdminPassword = defaultBridge.verifyAdminPassword.bind(defaultBridge);
+        if (typeof window.EntropiaBridge.rollVitruvia !== 'function') window.EntropiaBridge.rollVitruvia = defaultBridge.rollVitruvia.bind(defaultBridge);
+      }
+    })();
+
+    const VECTOR_PROP_CATALOG = [
+      { id: 'prop_console',   vType: 'console',   name: 'Термінал',        icon: '🖥️', kind: 'prop', cells: 1, color: '#22d3ee' },
+      { id: 'prop_cryopod',   vType: 'cryopod',   name: 'Стазис-капсула',  icon: '🧪', kind: 'prop', cells: 1, color: '#38bdf8' },
+      { id: 'prop_container', vType: 'container', name: 'Контейнер',       icon: '🗄️', kind: 'prop', cells: 2, color: '#0284c7' },
+      { id: 'prop_crate',     vType: 'crate',     name: 'Вантажний блок',  icon: '📦', kind: 'prop', cells: 1, color: '#d97706' },
+      { id: 'prop_barricade', vType: 'barricade', name: 'Барикада',        icon: '🚧', kind: 'prop', cells: 1, color: '#f59e0b' },
+      { id: 'prop_pillar',    vType: 'pillar',    name: 'Опорна колона',   icon: '🏛️', kind: 'prop', cells: 1, color: '#64748b' },
+      { id: 'prop_rubble',    vType: 'rubble',    name: 'Завал уламків',   icon: '🪨', kind: 'prop', cells: 1, color: '#475569' },
+      { id: 'prop_turbine',   vType: 'turbine',   name: 'Турбіна / Вузол', icon: '⚙️', kind: 'prop', cells: 2, color: '#10b981' },
+      { id: 'prop_tree',      vType: 'tree',      name: 'Біо-дерево',      icon: '🌳', kind: 'prop', cells: 2, color: '#10b981' },
+      { id: 'prop_mushroom',  vType: 'mushroom',  name: 'Гігантський гриб',icon: '🍄', kind: 'prop', cells: 2, color: '#2dd4bf' },
+      { id: 'prop_crystal',   vType: 'crystal',   name: 'Друза кристалів', icon: '💎', kind: 'prop', cells: 1, color: '#34d399' },
+      { id: 'prop_stele',     vType: 'stele',     name: 'Стела / Обеліск', icon: '❖',  kind: 'prop', cells: 2, color: '#22d3ee' },
+      { id: 'prop_core',      vType: 'core',      name: 'Ядро Архангела',  icon: '💠', kind: 'prop', cells: 2, color: '#fbbf24' },
+      { id: 'tok_automaton',  vType: 'token',     name: 'Автоматон',       icon: '🤖', kind: 'token', cells: 1, color: '#38bdf8', hp: '80/80', shield: '30', isNpc: true },
+      { id: 'tok_predator',   vType: 'token',     name: 'Хижак Скверни',   icon: '☣️', kind: 'token', cells: 1, color: '#f43f5e', hp: '110/110', shield: '0', isNpc: true },
+      { id: 'tok_boss',       vType: 'token',     name: 'Вартовий',        icon: '🛡️', kind: 'token', cells: 2, color: '#f59e0b', hp: '260/260', shield: '80', isNpc: true },
+      { id: 'tok_npc',        vType: 'token',     name: 'НПС',             icon: '👤', kind: 'token', cells: 1, color: '#10b981', hp: '60/60', shield: '10', isNpc: true }
+    ];
+
+    let personalCatalog = [];
+
+    // =========================================================================
+    // 3. ТОЧНЕ РОЗПІЗНАВАННЯ ТА ПОБУДОВА КАНОНІЧНИХ СТРУКТУР СЕКТОРА I
+    // =========================================================================
+    function hashStringToSeed(str) {
+      let h = 2166136261 >>> 0;
+      const s = String(str || 'entropia_structure');
+      for (let i = 0; i < s.length; i++) {
+        h ^= s.charCodeAt(i);
+        h = Math.imul(h, 16777619);
+      }
+      return h >>> 0;
+    }
+
+    function createSeededRandom(seedInt) {
+      let a = (seedInt >>> 0) || 317317;
+      return function() {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function resolveStructureConfig(entry) {
+      if (entry.structureId && SECTOR_1_CANON_DB[entry.structureId]) {
+        const dbMatch = SECTOR_1_CANON_DB[entry.structureId];
+        return Object.assign({}, dbMatch, entry, { archetype: entry.forcedArchetype || dbMatch.archetype });
+      }
+
+      const fullText = `${entry.title || ''} ${entry.type || ''} ${entry.badge || ''} ${entry.notes || ''}`;
+      const lower = fullText.toLowerCase();
+
+      if (lower.includes('маяк') || lower.includes('архангел') || lower.includes('рафаїл') || lower.includes('beacon')) {
+        return Object.assign({}, entry, { archetype: 'archangel_tower', floorsCount: 13 });
+      }
+
+      const hasGlobalCodePattern = /[«"'\s]([ΔΩΣΑΒΓΕA-ZА-ЯІЇЄ])-?\d{2}[»"'\s.,)]?/i.test(fullText) || /[ΔΩΣ]-\d{2}/i.test(fullText) || /[A-ZА-Я]-\d{2}/i.test(entry.title || '');
+      if (hasGlobalCodePattern || entry.objectKind === 'ruin' || ['sanctum', 'bastion', 'industrial', 'hab_block', 'lab_dome'].includes(entry.type)) {
+        return Object.assign({}, entry, { archetype: 'global_code_complex' });
+      }
+
+      if (entry.objectKind === 'greenhouse' || lower.includes('біокупол') || lower.includes('оранжер') || lower.includes('павільйон') || lower.includes('ротонда') || lower.includes('кріо-сховище') || lower.includes('ізолятор') || lower.includes('едем') || lower.includes('міцелій') || lower.includes('лотос') || lower.includes('нектар') || lower.includes('генезис') || lower.includes('роса')) {
+        let domeTheme = 'eden';
+        if (lower.includes('лотос') || lower.includes('гідро')) domeTheme = 'lotus';
+        else if (lower.includes('міцелій') || lower.includes('спор')) domeTheme = 'spore';
+        else if (lower.includes('нектар') || lower.includes('фаун') || lower.includes('ротонда')) domeTheme = 'fauna';
+        else if (lower.includes('генезис') || lower.includes('кріо') || lower.includes('насін')) domeTheme = 'cryo';
+        else if (lower.includes('червона') || lower.includes('ізолятор') || lower.includes('ураж') || lower.includes('corrupted')) domeTheme = 'corrupted';
+        return Object.assign({}, entry, { archetype: 'round_biodome', domeTheme });
+      }
+
+      if (lower.includes('вагон') || lower.includes('метро')) return Object.assign({}, entry, { archetype: 'outdoor_metro_hub' });
+      if (lower.includes('брама') || lower.includes('сіель')) return Object.assign({}, entry, { archetype: 'outdoor_ciel_gate' });
+      if (lower.includes('стела') || lower.includes('першомов') || lower.includes('альфа-1')) return Object.assign({}, entry, { archetype: 'outdoor_stele_plaza' });
+      if (lower.includes('міст') || lower.includes('акведук')) return Object.assign({}, entry, { archetype: 'outdoor_aqueduct_bridge' });
+      if (lower.includes('пірс') || lower.includes('дренаж') || lower.includes('катер')) return Object.assign({}, entry, { archetype: 'outdoor_drainage_pier' });
+      if (lower.includes('депо') || lower.includes('дрон') || lower.includes('автоматон')) return Object.assign({}, entry, { archetype: 'outdoor_drone_depot' });
+      if (lower.includes('аура') || lower.includes('джерело') || lower.includes('кристал')) return Object.assign({}, entry, { archetype: 'outdoor_aura_spring' });
+      if (lower.includes('тріщин') || lower.includes('прорив') || lower.includes('скверн')) return Object.assign({}, entry, { archetype: 'outdoor_perimeter_breach' });
+
+      return Object.assign({}, entry, { archetype: 'global_code_complex' });
+    }
+
+    function createFloorLayer(id, code, name) {
+      return {
+        id,
+        code: code || `ЯРУС ${id}`,
+        name: name || `Рівень ${id}`,
+        zones: [],
+        walls: {},
+        doors: {},
+        floorTiles: {},
+        rails: [],
+        spokes: [],
+        hazards: {},
+        fog: {},
+        entities: []
+      };
+    }
+
+    // Головний генератор усіх типів структур Сектора I
+    function generateStructureInterior(rawInfo, variationSalt = 0) {
+      const cfg = resolveStructureConfig(rawInfo);
+      const archetype = cfg.archetype;
+      const seedInt = hashStringToSeed(`${cfg.sectorId || 1}::${cfg.structureId || ''}::${cfg.title}::${archetype}::${variationSalt}`);
+      const rng = createSeededRandom(seedInt);
+
+      let gridSize = 28;
+      if (archetype === 'archangel_tower') gridSize = 28;
+      else if (archetype === 'global_code_complex') gridSize = 34;
+      else if (archetype === 'round_biodome') gridSize = 30;
+      else gridSize = 26;
+
+      const floors = [];
+      let entCounter = 1;
+
+      const spawnProp = (floor, col, row, vType, cells = 1, rotation = 0, color = '#22d3ee') => {
+        const c = Math.max(1, Math.min(gridSize - cells - 1, Math.round(col)));
+        const r = Math.max(1, Math.min(gridSize - cells - 1, Math.round(row)));
+        if (floor.walls[`${c},${r}`]) return;
+        floor.entities.push({
+          id: `p_${seedInt}_${entCounter++}`,
+          vType,
+          name: '',
+          showLabel: false,
+          icon: '◈',
+          kind: 'prop',
+          cells,
+          color,
+          col: c,
+          row: r,
+          scale: 1,
+          rotation,
+          hp: '',
+          shield: '',
+          hidden: false,
+          isNpc: false,
+          owner: 'Архітектор'
+        });
+      };
+
+      const carveRectRoom = (floor, x1, y1, x2, y2, tileType = 'tile', chamfer = false) => {
+        const minX = Math.max(1, Math.min(x1, x2)), maxX = Math.min(gridSize - 2, Math.max(x1, x2));
+        const minY = Math.max(1, Math.min(y1, y2)), maxY = Math.min(gridSize - 2, Math.max(y1, y2));
+        for (let r = minY; r <= maxY; r++) {
+          for (let c = minX; c <= maxX; c++) {
+            if (chamfer && ((c === minX && r === minY) || (c === maxX && r === minY) || (c === minX && r === maxY) || (c === maxX && r === maxY))) continue;
+            const isBorder = (r === minY || r === maxY || c === minX || c === maxX);
+            const k = `${c},${r}`;
+            if (isBorder) {
+              if (!floor.floorTiles[k] || floor.floorTiles[k] === 'grass') floor.walls[k] = true;
+            } else {
+              delete floor.walls[k];
+              floor.floorTiles[k] = tileType;
+            }
+          }
+        }
+      };
+
+      const carveCorridor = (floor, c1, r1, c2, r2, width = 2, tileType = 'grate') => {
+        let currC = Math.round(c1), currR = Math.round(r1);
+        const targetC = Math.round(c2), targetR = Math.round(r2);
+        const step = (cx, cy) => {
+          for (let dy = -1; dy <= width; dy++) {
+            for (let dx = -1; dx <= width; dx++) {
+              const x = cx + dx, y = cy + dy;
+              if (x < 1 || x >= gridSize - 1 || y < 1 || y >= gridSize - 1) continue;
+              const k = `${x},${y}`;
+              if (dx >= 0 && dx < width && dy >= 0 && dy < width) {
+                delete floor.walls[k];
+                floor.floorTiles[k] = tileType;
+              } else if (!floor.floorTiles[k]) {
+                floor.walls[k] = true;
+              }
+            }
+          }
+        };
+        while (currC !== targetC) { step(currC, currR); currC += currC < targetC ? 1 : -1; }
+        while (currR !== targetR) { step(currC, currR); currR += currR < targetR ? 1 : -1; }
+        step(targetC, targetR);
+      };
+
+      // =====================================================================
+      // АРХЕТИП 1: 🗼 МАЯК АРХАНГЕЛА I (РАФАЇЛЬ) — 13 ПОВЕРХІВ ЄДИНОЇ ВЕЖІ ВГОРУ
+      // =====================================================================
+      if (archetype === 'archangel_tower') {
+        const totalTowerFloors = 13;
+        const cx = (gridSize - 1) / 2;
+        const cy = (gridSize - 1) / 2;
+
+        for (let lvl = 1; lvl <= totalTowerFloors; lvl++) {
+          const fl = createFloorLayer(lvl, `ПОВЕРХ +${lvl}`, `Маяк Архангела • Поверх ${lvl}`);
+          const shrink = Math.floor((lvl - 1) / 3) * 0.9;
+          const outerR = 11.8 - shrink;
+          const ring2R = 8.2 - shrink * 0.65;
+          const ring1R = 4.6 - shrink * 0.35;
+
+          fl.spokes = [{ cx, cy, outerR, color: 'rgba(251, 191, 36, 0.55)', count: 8, isBeacon: true }];
+
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const dist = Math.hypot(c - cx, r - cy);
+              const k = `${c},${r}`;
+
+              if (lvl === 1 && dist > outerR) {
+                fl.floorTiles[k] = r < 7 ? 'deep_water' : 'grass';
+                if (Math.abs(c - cx) <= 1.6 && r >= cy + outerR - 1) {
+                  fl.floorTiles[k] = 'stone_path';
+                }
+              }
+
+              if (dist <= outerR) {
+                if (Math.abs(dist - ring2R) < 0.7 || Math.abs(dist - ring1R) < 0.65) {
+                  fl.floorTiles[k] = 'cyan_ring';
+                } else if (dist <= 2.3) {
+                  fl.floorTiles[k] = 'gold_trim';
+                } else {
+                  fl.floorTiles[k] = 'metal';
+                }
+
+                if (Math.abs(dist - outerR) < 0.62) fl.walls[k] = true;
+                if (lvl % 2 === 1 && Math.abs(dist - ring2R) < 0.52) fl.walls[k] = true;
+                if (lvl % 3 !== 0 && Math.abs(dist - ring1R) < 0.50) fl.walls[k] = true;
+              }
+            }
+          }
+
+          for (let s = 0; s < 8; s++) {
+            const ang = (s * Math.PI) / 4;
+            for (let rad = 2.2; rad <= outerR + 0.5; rad += 0.7) {
+              const sc = Math.round(cx + Math.cos(ang) * rad);
+              const sr = Math.round(cy + Math.sin(ang) * rad);
+              const sk = `${sc},${sr}`;
+              if (rad < outerR - 0.5 || (lvl === 1 && s === 2)) {
+                delete fl.walls[sk];
+                if (Math.abs(rad - ring2R) < 0.7 || Math.abs(rad - ring1R) < 0.7) fl.doors[sk] = true;
+              }
+            }
+            const pilAng = ang + Math.PI / 8;
+            const pc = Math.round(cx + Math.cos(pilAng) * (ring1R + 1.6));
+            const pr = Math.round(cy + Math.sin(pilAng) * (ring1R + 1.6));
+            spawnProp(fl, pc, pr, 'pillar', 1, 0);
+          }
+
+          spawnProp(fl, Math.floor(cx), Math.floor(cy), 'core', 2, (lvl * 30) % 360, '#fbbf24');
+
+          for (let s = 0; s < 8; s++) {
+            if ((s + lvl) % 2 !== 0) continue;
+            const ang = (s * Math.PI) / 4 + Math.PI / 8;
+            const eqR = (ring2R + outerR) * 0.48;
+            const ec = Math.round(cx + Math.cos(ang) * eqR);
+            const er = Math.round(cy + Math.sin(ang) * eqR);
+            const floorPropType =
+              lvl <= 3 ? (s % 2 === 0 ? 'container' : 'barricade') :
+              lvl <= 6 ? (s % 2 === 0 ? 'turbine' : 'console') :
+              lvl <= 9 ? (s % 2 === 0 ? 'cryopod' : 'console') :
+              lvl <= 12 ? (s % 2 === 0 ? 'stele' : 'crystal') : 'console';
+            spawnProp(fl, ec, er, floorPropType, 1, s * 45);
+          }
+
+          floors.push(fl);
+        }
+      }
+
+      // =====================================================================
+      // АРХЕТИП 2: 🏛️ ГЛОБАЛЬНІ СТРУКТУРИ З КОДОМ «Δ-82», «E-44», «E-61», «Δ-33»
+      // =====================================================================
+      else if (archetype === 'global_code_complex') {
+        const levelConfigs = [
+          { id: 1, code: 'ЯРУС 0 (НАЗЕМНИЙ)', name: 'Наземний Периметр Руїн' },
+          { id: 2, code: 'РІВЕНЬ -1',          name: 'Підземний Шлюзовий Ярус (-1)' },
+          { id: 3, code: 'РІВЕНЬ -2',          name: 'Інженерні Катакомби (-2)' },
+          { id: 4, code: 'РІВЕНЬ -3',          name: 'Релейні Зали Даних (-3)' },
+          { id: 5, code: 'РІВЕНЬ -4',          name: 'Кріо-Сховище та Реактори (-4)' },
+          { id: 6, code: 'РІВЕНЬ -5 (ДНО)',    name: 'Глибинне Ядро Санктуарію (-5)' }
+        ];
+
+        const mid = Math.floor(gridSize / 2);
+
+        levelConfigs.forEach((lCfg, idx) => {
+          const fl = createFloorLayer(lCfg.id, lCfg.code, lCfg.name);
+          const lvlRng = createSeededRandom(seedInt + idx * 7919);
+
+          if (idx === 0) {
+            for (let r = 0; r < gridSize; r++) {
+              for (let c = 0; c < gridSize; c++) {
+                const dist = Math.max(Math.abs(c - mid), Math.abs(r - mid), (Math.abs(c - mid) + Math.abs(r - mid)) * 0.72);
+                if (dist <= 13.5) {
+                  fl.floorTiles[`${c},${r}`] = 'stone';
+                  if (Math.abs(dist - 13.5) < 0.6) fl.walls[`${c},${r}`] = true;
+                } else {
+                  fl.floorTiles[`${c},${r}`] = 'grass';
+                }
+              }
+            }
+            carveCorridor(fl, 2, mid - 1, gridSize - 3, mid - 1, 2, 'stone_path');
+            carveCorridor(fl, mid - 1, 2, mid - 1, gridSize - 3, 2, 'stone_path');
+            for (let t = 0; t < 14; t++) {
+              const tc = 2 + Math.floor(lvlRng() * (gridSize - 4));
+              const tr = 2 + Math.floor(lvlRng() * (gridSize - 4));
+              if (fl.floorTiles[`${tc},${tr}`] === 'grass') spawnProp(fl, tc, tr, 'tree', 2, 0);
+            }
+          }
+
+          const rooms = [];
+          carveRectRoom(fl, mid - 4, mid - 4, mid + 4, mid + 4, 'metal', true);
+          spawnProp(fl, mid - 1, mid - 1, idx === 5 ? 'core' : 'console', 2, 0);
+          spawnProp(fl, mid - 3, mid - 3, 'pillar', 1, 0);
+          spawnProp(fl, mid + 3, mid - 3, 'pillar', 1, 0);
+          spawnProp(fl, mid - 3, mid + 3, 'pillar', 1, 0);
+          spawnProp(fl, mid + 3, mid + 3, 'pillar', 1, 0);
+          rooms.push({ cx: mid, cy: mid, w: 8, h: 8 });
+
+          const targetRooms = 10 + Math.floor(lvlRng() * 4);
+          for (let a = 0; a < 45 && rooms.length < targetRooms; a++) {
+            const w = 5 + Math.floor(lvlRng() * 5);
+            const h = 5 + Math.floor(lvlRng() * 5);
+            const rx = 3 + Math.floor(lvlRng() * (gridSize - w - 6));
+            const ry = 3 + Math.floor(lvlRng() * (gridSize - h - 6));
+            const rcx = Math.floor(rx + w / 2), rcy = Math.floor(ry + h / 2);
+
+            if (rooms.some(o => Math.hypot(o.cx - rcx, o.cy - rcy) < 6.0)) continue;
+            carveRectRoom(fl, rx, ry, rx + w, ry + h, idx >= 3 ? 'metal' : 'tile', lvlRng() > 0.35);
+            rooms.push({ cx: rcx, cy: rcy, rx, ry, w, h });
+
+            const pPick = ['console', 'cryopod', 'container', 'turbine', 'stele', 'crate', 'barricade'][Math.floor(lvlRng() * 7)];
+            spawnProp(fl, rcx - 1, rcy, pPick, (pPick === 'container' || pPick === 'turbine') ? 2 : 1, Math.floor(lvlRng() * 4) * 90);
+            if (lvlRng() < 0.35 + idx * 0.1) {
+              fl.hazards[`${rcx + 1},${rcy + 1}`] = idx >= 3 ? 'spores' : 'acid';
+            }
+          }
+
+          for (let i = 1; i < rooms.length; i++) {
+            carveCorridor(fl, rooms[i - 1].cx, rooms[i - 1].cy, rooms[i].cx, rooms[i].cy, 2, 'grate');
+            fl.doors[`${rooms[i].cx},${rooms[i].cy}`] = true;
+          }
+          if (rooms.length > 4) {
+            carveCorridor(fl, rooms[1].cx, rooms[1].cy, rooms[rooms.length - 1].cx, rooms[rooms.length - 1].cy, 2, 'grate');
+          }
+
+          floors.push(fl);
+        });
+      }
+
+      // =====================================================================
+      // АРХЕТИП 3: 🌿 6 УНІКАЛЬНИХ КРУГЛИХ БІОКУПОЛІВ (Кожен має власний Ярус 1 та абсолютно різний Рівень -1!)
+      // =====================================================================
+      else if (archetype === 'round_biodome') {
+        const theme = cfg.domeTheme || SECTOR_1_CANON_DB[cfg.structureId]?.domeTheme || 'eden';
+        const subFloorNames = {
+          eden:      { code: 'РІВЕНЬ -1 (ГІДРО-РОТОНДА)', name: 'Кільцева Гідро-Ротонда (-1)' },
+          lotus:     { code: 'РІВЕНЬ -1 (АКВЕДУКИ)',      name: 'Затоплені Канали Водоочищення (-1)' },
+          spore:     { code: 'РІВЕНЬ -1 (ГРИБНІ ГРОТИ)',   name: 'Біолюмінесцентні Печери Міцелію (-1)' },
+          fauna:     { code: 'РІВЕНЬ -1 (ВІВАРІЙ)',        name: 'Підземний Віварій та Клітки (-1)' },
+          cryo:      { code: 'РІВЕНЬ -1 (ГЕННИЙ СЕЙФ)',    name: 'Кріо-Бункер Насіннєвого Банку (-1)' },
+          corrupted: { code: 'РІВЕНЬ -1 (РОЗЛОМ)',         name: 'Зруйнований Карантинний Сектор (-1)' }
+        };
+        const sfMeta = subFloorNames[theme] || subFloorNames.eden;
+
+        const f1 = createFloorLayer(1, 'ЯРУС 1 (КУПОЛ)', cfg.title || 'Біокупол');
+        const f2 = createFloorLayer(2, sfMeta.code, sfMeta.name);
+
+        const cx = (gridSize - 1) / 2;
+        const cy = (gridSize - 1) / 2;
+        const mid = Math.floor(gridSize / 2);
+        const domeR = 12.4;
+
+        const intactSectors =
+          cfg.structureData?.intactSectors ||
+          cfg.intactSectors ||
+          SECTOR_1_CANON_DB[cfg.structureId]?.intactSectors ||
+          [true, true, false, true, true, false, true, true];
+
+        const spokeColor =
+          theme === 'corrupted' ? 'rgba(244, 63, 94, 0.6)' :
+          theme === 'cryo'      ? 'rgba(56, 189, 248, 0.65)' :
+          theme === 'spore'     ? 'rgba(45, 212, 191, 0.55)' :
+                                  'rgba(167, 243, 208, 0.65)';
+
+        f1.spokes = [{ cx, cy, outerR: domeR, color: spokeColor, count: 8, isBiodome: true }];
+
+        // 1. Базова кругла оболонка купола з урахуванням цілих і розбитих секторів intactSectors
+        for (let r = 0; r < gridSize; r++) {
+          for (let c = 0; c < gridSize; c++) {
+            const dx = c - cx, dy = r - cy;
+            const dist = Math.hypot(dx, dy);
+            const k = `${c},${r}`;
+            let angle = Math.atan2(dy, dx);
+            if (angle < 0) angle += Math.PI * 2;
+            const sectorIdx = Math.floor(angle / (Math.PI / 4)) % 8;
+            const isIntact = intactSectors[sectorIdx] !== false;
+
+            if (dist > domeR) {
+              f1.floorTiles[k] = 'grass';
+            } else {
+              f1.floorTiles[k] = isIntact ? 'grass' : 'stone';
+              if (Math.abs(dist - domeR) < 0.62) {
+                if (isIntact || rng() > 0.38) f1.walls[k] = true;
+              }
+            }
+          }
+        }
+
+        // Відкриваємо 4 кардинальні шлюзи входу в купол
+        [[mid, Math.round(cy + domeR)], [mid, Math.round(cy - domeR)], [Math.round(cx - domeR), mid], [Math.round(cx + domeR), mid]].forEach(([dc, dr]) => {
+          delete f1.walls[`${dc},${dr}`];
+          delete f1.walls[`${dc + 1},${dr}`];
+          delete f1.walls[`${dc},${dr + 1}`];
+          f1.doors[`${dc},${dr}`] = true;
+        });
+
+        // -------------------------------------------------------------------
+        // ВАРІАНТ 3А: 🌿 БІОКУПОЛ «ЕДЕМ-АЛЬФА» (Дзеркальне Озеро Едему + Кільцева Гідро-Ротонда -1)
+        // -------------------------------------------------------------------
+        if (theme === 'eden') {
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const dist = Math.hypot(c - cx, r - cy);
+              const k = `${c},${r}`;
+              if (dist <= 5.2 && dist >= 1.8) {
+                f1.floorTiles[k] = 'water'; // Широке Дзеркальне Озеро Едему
+              } else if (dist < 1.8) {
+                f1.floorTiles[k] = 'gold_trim'; // Центральний острів керування поливом
+              } else if (Math.abs(dist - 5.8) < 0.7 || Math.abs(dist - 9.0) < 0.6) {
+                f1.floorTiles[k] = 'stone_path'; // 2 концентричні садові променади
+              }
+            }
+          }
+          // 8 радіальних алей та 4 мости через Дзеркальне Озеро
+          for (let s = 0; s < 8; s++) {
+            const ang = (s * Math.PI) / 4;
+            for (let rad = 1.8; rad <= domeR; rad += 0.5) {
+              const sc = Math.round(cx + Math.cos(ang) * rad), sr = Math.round(cy + Math.sin(ang) * rad);
+              if (rad >= 5.2 || s % 2 === 0) {
+                delete f1.walls[`${sc},${sr}`];
+                f1.floorTiles[`${sc},${sr}`] = rad < 5.2 ? 'grate' : 'stone_path';
+              }
+            }
+            const midAng = ang + Math.PI / 8;
+            spawnProp(f1, cx + Math.cos(midAng) * 7.4, cy + Math.sin(midAng) * 7.4, 'tree', 2, 0);
+            spawnProp(f1, cx + Math.cos(midAng) * 10.4, cy + Math.sin(midAng) * 10.4, s % 2 === 0 ? 'crystal' : 'console', 1, 0);
+          }
+          spawnProp(f1, mid - 1, mid - 1, 'console', 2, 0);
+
+          // РІВЕНЬ -1 (Едем-Альфа): Кругла Гідро-Ротонда з кільцевим басейном і 4 шлюзовими залами
+          for (let r = 2; r < gridSize - 2; r++) {
+            for (let c = 2; c < gridSize - 2; c++) {
+              const dist = Math.hypot(c - cx, r - cy);
+              const k = `${c},${r}`;
+              if (dist <= 10.5) {
+                if (dist >= 4.2 && dist <= 6.8) f2.floorTiles[k] = 'water';
+                else f2.floorTiles[k] = 'metal';
+                if (Math.abs(dist - 10.5) < 0.6) f2.walls[k] = true;
+              }
+            }
+          }
+          carveCorridor(f2, 4, mid - 1, gridSize - 5, mid - 1, 2, 'grate');
+          carveCorridor(f2, mid - 1, 4, mid - 1, gridSize - 5, 2, 'grate');
+          spawnProp(f2, mid - 1, mid - 1, 'turbine', 2, 0);
+          [[mid - 8, mid - 1], [mid + 7, mid - 1], [mid - 1, mid - 8], [mid - 1, mid + 7]].forEach(([tc, tr]) => {
+            spawnProp(f2, tc, tr, 'turbine', 2, 0);
+          });
+        }
+
+        // -------------------------------------------------------------------
+        // ВАРІАНТ 3Б: 🪷 ГІДРО-ОРАНЖЕРЕЯ «ЛОТОС-3» (Напівзатоплена теплиця + Затоплені акведуки -1)
+        // -------------------------------------------------------------------
+        else if (theme === 'lotus') {
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const dist = Math.hypot(c - cx, r - cy);
+              const k = `${c},${r}`;
+              if (dist <= domeR - 0.6) {
+                // 65% купола — вода з острівцями лотосів та решітчастими помостами
+                const wave = Math.sin(c * 0.55) + Math.cos(r * 0.55);
+                f1.floorTiles[k] = wave > 0.45 ? 'grass' : (dist < 4.5 ? 'deep_water' : 'water');
+              }
+            }
+          }
+          // Хрестові та кільцеві інженерні помости (grate) над водою
+          for (let s = 0; s < 8; s++) {
+            const ang = (s * Math.PI) / 4;
+            for (let rad = 1.5; rad <= domeR; rad += 0.5) {
+              const sc = Math.round(cx + Math.cos(ang) * rad), sr = Math.round(cy + Math.sin(ang) * rad);
+              delete f1.walls[`${sc},${sr}`];
+              f1.floorTiles[`${sc},${sr}`] = 'grate';
+            }
+          }
+          for (let a = 0; a < Math.PI * 2; a += 0.06) {
+            const rc = Math.round(cx + Math.cos(a) * 6.8), rr = Math.round(cy + Math.sin(a) * 6.8);
+            f1.floorTiles[`${rc},${rr}`] = 'grate';
+          }
+          spawnProp(f1, mid - 1, mid - 1, 'turbine', 2, 0);
+          for (let s = 0; s < 8; s++) {
+            const ang = (s + 0.5) * (Math.PI / 4);
+            spawnProp(f1, cx + Math.cos(ang) * 8.5, cy + Math.sin(ang) * 8.5, s % 2 === 0 ? 'crystal' : 'console', 1, 0);
+          }
+
+          // РІВЕНЬ -1 (Лотос-3): 3 паралельні глибоководні канали-резервуари з вузькими містками та шлюзами
+          carveRectRoom(f2, 4, 4, gridSize - 5, gridSize - 5, 'metal', false);
+          for (let r = 6; r < gridSize - 6; r++) {
+            for (let c = 6; c < gridSize - 6; c++) {
+              if ((c >= 7 && c <= 10) || (c >= 13 && c <= 16) || (c >= 19 && c <= 22)) {
+                f2.floorTiles[`${c},${r}`] = (r === mid || r === 9 || r === gridSize - 10) ? 'grate' : 'deep_water';
+              }
+            }
+          }
+          spawnProp(f2, 8, 6, 'turbine', 2, 0);
+          spawnProp(f2, 14, 6, 'turbine', 2, 0);
+          spawnProp(f2, 20, 6, 'turbine', 2, 0);
+          spawnProp(f2, 11, mid, 'console', 1, 0);
+          spawnProp(f2, 17, mid, 'container', 2, 0);
+        }
+
+        // -------------------------------------------------------------------
+        // ВАРІАНТ 3В: 🍄 СПОРОВИЙ ПАВІЛЬЙОН «МІЦЕЛІЙ-7» (Гігантські гриби + Органічні печери міцелію -1)
+        // -------------------------------------------------------------------
+        else if (theme === 'spore') {
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const dist = Math.hypot(c - cx, r - cy);
+              const k = `${c},${r}`;
+              if (dist <= domeR - 0.6) {
+                const n = Math.sin(c * 0.45 + r * 0.3) * Math.cos(r * 0.45 - c * 0.2);
+                if (dist < 4.2 + n * 1.6) f1.floorTiles[k] = 'water'; // Асиметрична Спорова Лагуна
+                else if (n > 0.48 && dist > 5.5 && dist < 10.5) f1.walls[k] = true; // Стіни закам'янілого міцелію
+                if (rng() < 0.14 && !f1.walls[k]) f1.hazards[k] = 'spores';
+              }
+            }
+          }
+          for (let s = 0; s < 8; s++) {
+            const ang = (s * Math.PI) / 4;
+            for (let rad = 3.5; rad <= domeR; rad += 0.5) {
+              const sc = Math.round(cx + Math.cos(ang) * rad), sr = Math.round(cy + Math.sin(ang) * rad);
+              delete f1.walls[`${sc},${sr}`];
+              f1.floorTiles[`${sc},${sr}`] = 'stone_path';
+            }
+            const mAng = ang + Math.PI / 8;
+            spawnProp(f1, cx + Math.cos(mAng) * 6.5, cy + Math.sin(mAng) * 6.5, 'mushroom', 2, s * 45);
+            spawnProp(f1, cx + Math.cos(mAng) * 9.8, cy + Math.sin(mAng) * 9.8, s % 2 === 0 ? 'mushroom' : 'crystal', s % 2 === 0 ? 2 : 1, 0);
+          }
+
+          // РІВЕНЬ -1 (Міцелій-7): Звивисті органічні грибні гроти замість прямокутних кімнат!
+          const caveNodes = [
+            { x: mid, y: mid, r: 4.5 },
+            { x: 8,   y: 8,   r: 4.0 },
+            { x: 21,  y: 8,   r: 3.8 },
+            { x: 7,   y: 20,  r: 4.2 },
+            { x: 21,  y: 21,  r: 4.0 },
+            { x: mid, y: 6,   r: 3.2 },
+            { x: mid, y: 23,  r: 3.5 }
+          ];
+          for (let r = 2; r < gridSize - 2; r++) {
+            for (let c = 2; c < gridSize - 2; c++) {
+              const wobble = Math.sin(c * 0.7) * 0.6 + Math.cos(r * 0.7) * 0.6;
+              const inCave = caveNodes.some(nd => Math.hypot(c - nd.x, r - nd.y) + wobble <= nd.r);
+              const nearCave = caveNodes.some(nd => Math.hypot(c - nd.x, r - nd.y) + wobble <= nd.r + 0.85);
+              const k = `${c},${r}`;
+              if (inCave) {
+                f2.floorTiles[k] = Math.hypot(c - mid, r - mid) < 2.5 ? 'water' : 'stone';
+                if (rng() < 0.12) f2.hazards[k] = 'spores';
+              } else if (nearCave) {
+                f2.walls[k] = true;
+              }
+            }
+          }
+          for (let i = 1; i < caveNodes.length; i++) {
+            carveCorridor(f2, caveNodes[0].x, caveNodes[0].y, caveNodes[i].x, caveNodes[i].y, 2, 'stone');
+          }
+          caveNodes.forEach((nd, i) => {
+            spawnProp(f2, nd.x - 1, nd.y - 1, i % 2 === 0 ? 'mushroom' : 'crystal', i % 2 === 0 ? 2 : 1, 0);
+          });
+        }
+
+        // -------------------------------------------------------------------
+        // ВАРІАНТ 3Г: 🐾 БОТАНІЧНА РОТОНДА «НЕКТАР» (Вольєри фауни + Підземний Віварій -1)
+        // -------------------------------------------------------------------
+        else if (theme === 'fauna') {
+          // Центральне Джерело Нектару + 8 відокремлених вольєрів із різними біомами
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const dx = c - cx, dy = r - cy;
+              const dist = Math.hypot(dx, dy);
+              const k = `${c},${r}`;
+              let angle = Math.atan2(dy, dx);
+              if (angle < 0) angle += Math.PI * 2;
+              const sec = Math.floor(angle / (Math.PI / 4)) % 8;
+
+              if (dist <= 3.0) {
+                f1.floorTiles[k] = 'water'; // Джерело Нектару
+              } else if (dist <= 4.5) {
+                f1.floorTiles[k] = 'stone_path'; // Кільцевий оглядовий коридор навколо джерела
+              } else if (dist <= domeR - 0.6) {
+                // Кожен вольєр має власне покриття (вода, пісок/камінь, густа трава)
+                if (sec === 1 || sec === 5) f1.floorTiles[k] = dist > 7.5 && dist < 10.2 ? 'water' : 'grass';
+                else if (sec === 3 || sec === 7) f1.floorTiles[k] = 'stone';
+                else f1.floorTiles[k] = 'grass';
+
+                // Внутрішня скляна огорожа вольєрів на радіусі 4.8
+                if (Math.abs(dist - 4.8) < 0.48) f1.walls[k] = true;
+              }
+            }
+          }
+          // Стіни між вольєрами вздовж 8 спиць + двері до кожного вольєра
+          for (let s = 0; s < 8; s++) {
+            const ang = (s * Math.PI) / 4;
+            for (let rad = 4.8; rad <= domeR - 0.5; rad += 0.45) {
+              const sc = Math.round(cx + Math.cos(ang) * rad), sr = Math.round(cy + Math.sin(ang) * rad);
+              if (s % 2 === 0) {
+                // Головні проходи
+                delete f1.walls[`${sc},${sr}`];
+                f1.floorTiles[`${sc},${sr}`] = 'stone_path';
+              } else {
+                // Перегородки між вольєрами фауни
+                f1.walls[`${sc},${sr}`] = true;
+              }
+            }
+            const doorAng = ang + Math.PI / 8;
+            const dc = Math.round(cx + Math.cos(doorAng) * 4.8), dr = Math.round(cy + Math.sin(doorAng) * 4.8);
+            delete f1.walls[`${dc},${dr}`];
+            f1.doors[`${dc},${dr}`] = true;
+
+            spawnProp(f1, cx + Math.cos(doorAng) * 8.2, cy + Math.sin(doorAng) * 8.2, s % 2 === 0 ? 'tree' : 'crate', s % 2 === 0 ? 2 : 1, 0);
+          }
+
+          // РІВЕНЬ -1 (Нектар): Підземний Віварій — центральна галерея та 6 ізольованих камер утримання фауни
+          carveCorridor(f2, 4, mid - 1, gridSize - 5, mid - 1, 3, 'metal');
+          const cellsX = [5, 12, 19];
+          cellsX.forEach((x0, i) => {
+            // Верхній ряд кліток віварію
+            carveRectRoom(f2, x0, 4, x0 + 5, mid - 2, 'tile', false);
+            delete f2.walls[`${x0 + 2},${mid - 2}`]; f2.doors[`${x0 + 2},${mid - 2}`] = true;
+            spawnProp(f2, x0 + 1, 6, i === 1 ? 'cryopod' : 'crate', 1, 0);
+            spawnProp(f2, x0 + 3, 6, 'console', 1, 0);
+
+            // Нижній ряд кліток віварію
+            carveRectRoom(f2, x0, mid + 2, x0 + 5, gridSize - 5, 'tile', false);
+            delete f2.walls[`${x0 + 2},${mid + 2}`]; f2.doors[`${x0 + 2},${mid + 2}`] = true;
+            spawnProp(f2, x0 + 2, gridSize - 8, i === 0 ? 'container' : 'cryopod', 1, 0);
+          });
+        }
+
+        // -------------------------------------------------------------------
+        // ВАРІАНТ 3Д: ❄️ КРІО-СХОВИЩЕ НАСІННЯ «ГЕНЕЗИС» (Броньований купол + Восьмикутний Генний Сейф -1)
+        // -------------------------------------------------------------------
+        else if (theme === 'cryo') {
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const dist = Math.hypot(c - cx, r - cy);
+              const k = `${c},${r}`;
+              if (dist <= domeR - 0.5) {
+                if (dist <= 3.2) f1.floorTiles[k] = 'gold_trim';
+                else if (Math.abs(dist - 6.8) < 0.75) f1.floorTiles[k] = 'cyan_ring';
+                else f1.floorTiles[k] = 'metal';
+
+                if (Math.abs(dist - 6.8) < 0.45) f1.walls[k] = true;
+              }
+            }
+          }
+          for (let s = 0; s < 8; s++) {
+            const ang = (s * Math.PI) / 4;
+            for (let rad = 2.0; rad <= domeR; rad += 0.5) {
+              const sc = Math.round(cx + Math.cos(ang) * rad), sr = Math.round(cy + Math.sin(ang) * rad);
+              delete f1.walls[`${sc},${sr}`];
+              f1.floorTiles[`${sc},${sr}`] = 'grate';
+              if (Math.abs(rad - 6.8) < 0.6) f1.doors[`${sc},${sr}`] = true;
+            }
+            const mAng = ang + Math.PI / 8;
+            spawnProp(f1, cx + Math.cos(mAng) * 4.8, cy + Math.sin(mAng) * 4.8, 'cryopod', 1, s * 45);
+            spawnProp(f1, cx + Math.cos(mAng) * 9.0, cy + Math.sin(mAng) * 9.0, 'cryopod', 1, s * 45);
+            spawnProp(f1, cx + Math.cos(mAng) * 10.6, cy + Math.sin(mAng) * 10.6, s % 2 === 0 ? 'console' : 'container', 1, 0);
+          }
+          spawnProp(f1, mid - 1, mid - 1, 'core', 2, 0);
+
+          // РІВЕНЬ -1 (Генезис): Підземний Генний Банк, оточений ровом рідкого азоту, та 4 радіальні сховища ДНК
+          carveRectRoom(f2, mid - 5, mid - 5, mid + 5, mid + 5, 'gold_trim', true);
+          spawnProp(f2, mid - 1, mid - 1, 'core', 2, 0);
+          const vaults = [
+            { x1: mid - 3, y1: 2,            x2: mid + 3, y2: 7 },
+            { x1: mid - 3, y1: gridSize - 8, x2: mid + 3, y2: gridSize - 3 },
+            { x1: 2,       y1: mid - 3,      x2: 7,       y2: mid + 3 },
+            { x1: gridSize - 8, y1: mid - 3, x2: gridSize - 3, y2: mid + 3 }
+          ];
+          vaults.forEach(v => {
+            carveRectRoom(f2, v.x1, v.y1, v.x2, v.y2, 'cyan_ring', false);
+            const vcx = Math.floor((v.x1 + v.x2) / 2), vcy = Math.floor((v.y1 + v.y2) / 2);
+            carveCorridor(f2, vcx, vcy, mid, mid, 2, 'grate');
+            f2.doors[`${vcx},${vcy}`] = true;
+            spawnProp(f2, v.x1 + 1, v.y1 + 1, 'cryopod', 1, 0);
+            spawnProp(f2, v.x2 - 1, v.y1 + 1, 'cryopod', 1, 0);
+            spawnProp(f2, v.x1 + 1, v.y2 - 1, 'cryopod', 1, 0);
+            spawnProp(f2, v.x2 - 1, v.y2 - 1, 'cryopod', 1, 0);
+          });
+        }
+
+        // -------------------------------------------------------------------
+        // ВАРІАНТ 3Е: ☣️ ІЗОЛЯТОР «ЧЕРВОНА РОСА» (Розлом Скверни + Напівзруйнований бункер -1)
+        // -------------------------------------------------------------------
+        else {
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const dist = Math.hypot(c - cx, r - cy);
+              const k = `${c},${r}`;
+              if (dist <= domeR - 0.5) {
+                // Діагональний розлом Скверни через купол
+                const riftDist = Math.abs((c - cx) + (r - cy) * 0.85);
+                if (riftDist < 2.2) {
+                  delete f1.walls[k];
+                  f1.floorTiles[k] = 'barrier_wall';
+                  f1.hazards[k] = rng() > 0.35 ? 'spores' : 'acid';
+                } else if (dist < 4.5) {
+                  f1.floorTiles[k] = 'metal';
+                }
+              }
+            }
+          }
+          for (let s = 0; s < 8; s++) {
+            const mAng = (s + 0.5) * (Math.PI / 4);
+            const isInt = intactSectors[s] !== false;
+            spawnProp(f1, cx + Math.cos(mAng) * 6.5, cy + Math.sin(mAng) * 6.5, isInt ? 'barricade' : 'rubble', 1, s * 45);
+            spawnProp(f1, cx + Math.cos(mAng) * 9.5, cy + Math.sin(mAng) * 9.5, isInt ? 'cryopod' : 'mushroom', isInt ? 1 : 2, 0);
+          }
+          spawnProp(f1, mid - 1, mid - 1, 'console', 1, 0);
+
+          // РІВЕНЬ -1 (Червона Роса): Напіврозвалений карантинний бункер, розсічений тріщиною Скверни
+          carveRectRoom(f2, 4, 4, 13, 13, 'metal', true);
+          carveRectRoom(f2, 16, 4, 25, 13, 'tile', false);
+          carveRectRoom(f2, 4, 16, 13, 25, 'tile', false);
+          carveRectRoom(f2, 16, 16, 25, 25, 'metal', true);
+          carveCorridor(f2, 8, 8, 20, 8, 2, 'grate');
+          carveCorridor(f2, 8, 20, 20, 20, 2, 'grate');
+          carveCorridor(f2, 8, 8, 8, 20, 2, 'grate');
+          carveCorridor(f2, 20, 8, 20, 20, 2, 'grate');
+
+          // Розлом, що зруйнував південно-західну частину підземелля
+          for (let i = 5; i < gridSize - 5; i++) {
+            const rc = i, rr = gridSize - 1 - i;
+            for (let d = -1; d <= 1; d++) {
+              const k = `${rc + d},${rr}`;
+              delete f2.walls[k];
+              f2.floorTiles[k] = 'barrier_wall';
+              f2.hazards[k] = 'spores';
+            }
+          }
+          spawnProp(f2, 7, 7, 'console', 1, 0);
+          spawnProp(f2, 20, 7, 'cryopod', 1, 0);
+          spawnProp(f2, 21, 21, 'turbine', 2, 0);
+          spawnProp(f2, 9, 19, 'rubble', 1, 0);
+        }
+
+        floors.push(f1, f2);
+      }
+
+      // =====================================================================
+      // АРХЕТИП 4: 📍 МАЛІ ТА ВУЛИЧНІ СТРУКТУРИ ЗА МІТКАМИ СЕКТОРА I
+      // =====================================================================
+      else {
+        const f1 = createFloorLayer(1, 'ЯРУС 1 (ПОВЕРХНЯ)', cfg.title || 'Тактична Ділянка');
+        const mid = Math.floor(gridSize / 2);
+
+        for (let r = 0; r < gridSize; r++) {
+          for (let c = 0; c < gridSize; c++) {
+            f1.floorTiles[`${c},${r}`] = 'grass';
+          }
+        }
+
+        if (archetype === 'outdoor_metro_hub') {
+          for (let r = 1; r < gridSize - 1; r++) {
+            for (let c = mid - 2; c <= mid + 2; c++) {
+              f1.floorTiles[`${c},${r}`] = (c === mid - 2 || c === mid + 2) ? 'stone_path' : 'grate';
+            }
+          }
+          f1.rails.push({ trackCenter: mid - 0.5, isVertical: true });
+
+          for (let r = 5; r <= gridSize - 6; r++) {
+            for (let c = 5; c <= gridSize - 6; c++) {
+              if (Math.hypot(c - mid, r - mid) <= 7.5 && f1.floorTiles[`${c},${r}`] === 'grass') {
+                f1.floorTiles[`${c},${r}`] = 'stone';
+              }
+            }
+          }
+
+          carveRectRoom(f1, mid - 2, 6, mid + 2, 18, 'car_floor', false);
+          delete f1.walls[`${mid - 2},9`];  f1.doors[`${mid - 2},9`] = true;
+          delete f1.walls[`${mid - 2},15`]; f1.doors[`${mid - 2},15`] = true;
+          delete f1.walls[`${mid + 2},12`]; f1.doors[`${mid + 2},12`] = true;
+          delete f1.walls[`${mid},6`];      f1.doors[`${mid},6`] = true;
+
+          spawnProp(f1, mid, 7, 'console', 1, 0);
+          spawnProp(f1, mid - 1, 11, 'turbine', 1, 0);
+          spawnProp(f1, mid + 1, 14, 'crate', 1, 0);
+          spawnProp(f1, mid - 5, mid, 'barricade', 1, 90);
+          spawnProp(f1, mid + 5, mid - 2, 'rubble', 1, 0);
+        } else if (archetype === 'outdoor_ciel_gate') {
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const k = `${c},${r}`;
+              const arcY = gridSize - 5 + Math.round(Math.pow((c - mid) / 5.5, 2));
+              if (r >= arcY) {
+                f1.floorTiles[k] = 'barrier_wall';
+                if (r === arcY && Math.abs(c - mid) > 2) f1.walls[k] = true;
+              } else if (Math.abs(c - mid) <= 2) {
+                f1.floorTiles[k] = 'stone_path';
+              }
+            }
+          }
+          f1.rails.push({ trackCenter: mid - 0.5, isVertical: true });
+          carveRectRoom(f1, mid - 7, gridSize - 10, mid - 3, gridSize - 5, 'metal', true);
+          carveRectRoom(f1, mid + 3, gridSize - 10, mid + 7, gridSize - 5, 'metal', true);
+          spawnProp(f1, mid - 5, gridSize - 8, 'console', 1, 0);
+          spawnProp(f1, mid + 5, gridSize - 8, 'turbine', 1, 0);
+          spawnProp(f1, mid - 1, gridSize - 6, 'core', 2, 0);
+        } else if (archetype === 'outdoor_stele_plaza') {
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const dist = Math.hypot(c - mid, r - mid);
+              const onRoad = Math.abs(r - (mid + (c - mid) * 0.25)) <= 1.3 || Math.abs(c - mid) <= 1.2;
+              if (dist <= 4.5 || onRoad) {
+                f1.floorTiles[`${c},${r}`] = dist <= 3.2 ? 'gold_trim' : 'stone_path';
+              }
+            }
+          }
+          spawnProp(f1, mid - 1, mid - 1, 'stele', 2, 0);
+          [[mid - 3, mid - 3], [mid + 3, mid - 3], [mid - 3, mid + 3], [mid + 3, mid + 3]].forEach(([pc, pr]) => {
+            spawnProp(f1, pc, pr, 'pillar', 1, 0);
+          });
+        } else if (archetype === 'outdoor_aqueduct_bridge') {
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const k = `${c},${r}`;
+              if (r >= 6 && r <= gridSize - 7) f1.floorTiles[k] = 'water';
+              if (Math.abs(c - mid) <= 3) {
+                f1.floorTiles[k] = Math.abs(c - mid) <= 1 ? 'grate' : 'stone_path';
+                if (Math.abs(c - mid) === 3 && r >= 5 && r <= gridSize - 6 && r % 3 !== 0) {
+                  f1.walls[k] = true;
+                }
+              }
+            }
+          }
+          f1.rails.push({ trackCenter: mid - 0.5, isVertical: true });
+          spawnProp(f1, mid - 2, mid, 'barricade', 1, 0);
+          spawnProp(f1, mid + 2, mid - 2, 'crate', 1, 0);
+          spawnProp(f1, mid + 1, 3, 'console', 1, 0);
+        } else if (archetype === 'outdoor_drainage_pier') {
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const k = `${c},${r}`;
+              if (r < mid + 2) f1.floorTiles[k] = r < 6 ? 'deep_water' : 'water';
+              else f1.floorTiles[k] = r === mid + 2 ? 'stone_path' : 'grass';
+              if (Math.abs(c - mid) <= 3 && r >= 4 && r <= mid + 4) {
+                f1.floorTiles[k] = 'metal';
+              }
+            }
+          }
+          spawnProp(f1, mid - 2, 6, 'turbine', 2, 0);
+          spawnProp(f1, mid + 1, 6, 'turbine', 2, 0);
+          spawnProp(f1, mid - 1, 11, 'console', 1, 0);
+          spawnProp(f1, mid + 5, 8, 'container', 2, 30);
+        } else if (archetype === 'outdoor_drone_depot') {
+          carveRectRoom(f1, 6, 6, gridSize - 7, gridSize - 7, 'metal', true);
+          delete f1.walls[`${mid},${gridSize - 7}`]; f1.doors[`${mid},${gridSize - 7}`] = true;
+          spawnProp(f1, 9, 9, 'cryopod', 1, 0);
+          spawnProp(f1, 12, 9, 'cryopod', 1, 0);
+          spawnProp(f1, 15, 9, 'cryopod', 1, 0);
+          spawnProp(f1, mid - 1, mid + 1, 'console', 1, 0);
+          spawnProp(f1, gridSize - 10, mid, 'container', 2, 0);
+        } else if (archetype === 'outdoor_aura_spring') {
+          for (let r = 0; r < gridSize; r++) {
+            for (let c = 0; c < gridSize; c++) {
+              const d = Math.hypot(c - mid, r - mid);
+              if (d <= 6.2) f1.floorTiles[`${c},${r}`] = 'water';
+              else if (d <= 8.0) f1.floorTiles[`${c},${r}`] = 'stone_path';
+            }
+          }
+          for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
+            spawnProp(f1, Math.round(mid + Math.cos(a) * 4.2), Math.round(mid + Math.sin(a) * 4.2), 'crystal', 1, 0);
+          }
+          spawnProp(f1, mid, mid, 'crystal', 2, 0);
+        } else {
+          for (let r = 1; r < gridSize - 1; r++) {
+            f1.walls[`5,${r}`] = true;
+            f1.walls[`6,${r}`] = true;
+          }
+          for (let r = mid - 3; r <= mid + 3; r++) {
+            delete f1.walls[`5,${r}`]; delete f1.walls[`6,${r}`];
+            f1.floorTiles[`5,${r}`] = 'stone'; f1.floorTiles[`6,${r}`] = 'stone';
+          }
+          for (let i = 0; i < 18; i++) {
+            const hc = 3 + Math.floor(rng() * 14), hr = 4 + Math.floor(rng() * (gridSize - 8));
+            f1.hazards[`${hc},${hr}`] = 'spores';
+            if (i % 3 === 0) spawnProp(f1, hc, hr, 'rubble', 1, 0);
+          }
+        }
+
+        for (let t = 0; t < 18; t++) {
+          const tc = 2 + Math.floor(rng() * (gridSize - 5));
+          const tr = 2 + Math.floor(rng() * (gridSize - 5));
+          if (f1.floorTiles[`${tc},${tr}`] === 'grass' && !f1.walls[`${tc},${tr}`]) {
+            spawnProp(f1, tc, tr, 'tree', 2, 0);
+          }
+        }
+
+        floors.push(f1);
+      }
+
+      return { archetype, seedInt, gridCount: gridSize, floors };
+    }
+
+    // =========================================================================
+    // 4. OFFSCREEN КЕШ АРХІТЕКТУРИ ТА ДЕТАЛІЗОВАНІ ВЕКТОРНІ СИЛУЕТИ ОБ'ЄКТІВ
+    // =========================================================================
+    const archBufferCanvas = document.createElement('canvas');
+    const archCtx = archBufferCanvas.getContext('2d');
+    let archBufferDirty = true;
+
+    function invalidateArchBuffer() {
+      archBufferDirty = true;
+      requestRender();
+    }
+
+    function drawTopDownVectorProp(c2d, ent, radius, cellSize) {
+      const span = Number(ent.cells || 1);
+      const half = (cellSize * span) * 0.42 * (ent.scale || 1);
+      const vType = ent.vType || 'crate';
+
+      c2d.save();
+      c2d.shadowColor = 'rgba(0, 0, 0, 0.65)';
+      c2d.shadowBlur = 7;
+
+      if (vType === 'tree') {
+        c2d.fillStyle = '#14532d';
+        c2d.strokeStyle = '#052e16';
+        c2d.lineWidth = 1.5;
+        c2d.beginPath(); c2d.arc(0, 0, half * 0.95, 0, Math.PI * 2); c2d.fill(); c2d.stroke();
+        c2d.fillStyle = '#22c55e';
+        for (let i = 0; i < 5; i++) {
+          const a = (i * Math.PI * 2) / 5;
+          c2d.beginPath();
+          c2d.arc(Math.cos(a) * half * 0.35, Math.sin(a) * half * 0.35, half * 0.55, 0, Math.PI * 2);
+          c2d.fill();
+        }
+        c2d.fillStyle = '#86efac';
+        c2d.beginPath(); c2d.arc(-half * 0.22, -half * 0.22, half * 0.38, 0, Math.PI * 2); c2d.fill();
+      } else if (vType === 'mushroom') {
+        // Гігантський біолюмінесцентний гриб-фільтратор для Спорового павільйону «Міцелій-7»
+        c2d.fillStyle = '#0f766e';
+        c2d.strokeStyle = '#2dd4bf';
+        c2d.lineWidth = 2;
+        c2d.beginPath(); c2d.arc(0, 0, half * 0.92, 0, Math.PI * 2); c2d.fill(); c2d.stroke();
+        // Світні спорові кільця та плями на шапці гриба
+        c2d.fillStyle = '#99f6e4';
+        [[-0.35, -0.25, 0.18], [0.3, -0.3, 0.15], [0.25, 0.32, 0.2], [-0.3, 0.3, 0.14], [0, 0, 0.24]].forEach(([ox, oy, rr]) => {
+          c2d.beginPath(); c2d.arc(ox * half, oy * half, rr * half, 0, Math.PI * 2); c2d.fill();
+        });
+      } else if (vType === 'crystal') {
+        c2d.fillStyle = '#065f46';
+        c2d.strokeStyle = '#34d399';
+        c2d.lineWidth = 1.8;
+        for (let i = 0; i < 6; i++) {
+          const a = (i * Math.PI) / 3;
+          c2d.beginPath();
+          c2d.moveTo(0, 0);
+          c2d.lineTo(Math.cos(a - 0.25) * half * 0.85, Math.sin(a - 0.25) * half * 0.85);
+          c2d.lineTo(Math.cos(a) * half * 1.1, Math.sin(a) * half * 1.1);
+          c2d.lineTo(Math.cos(a + 0.25) * half * 0.85, Math.sin(a + 0.25) * half * 0.85);
+          c2d.closePath();
+          c2d.fill(); c2d.stroke();
+        }
+      } else if (vType === 'stele') {
+        c2d.fillStyle = '#082f49';
+        c2d.strokeStyle = '#22d3ee';
+        c2d.lineWidth = 2.2;
+        c2d.beginPath();
+        c2d.moveTo(0, -half); c2d.lineTo(half, 0); c2d.lineTo(0, half); c2d.lineTo(-half, 0);
+        c2d.closePath(); c2d.fill(); c2d.stroke();
+        c2d.strokeStyle = '#fde047';
+        c2d.strokeRect(-half * 0.45, -half * 0.45, half * 0.9, half * 0.9);
+      } else if (vType === 'core') {
+        c2d.fillStyle = '#091322';
+        c2d.strokeStyle = '#fbbf24';
+        c2d.lineWidth = 2.5;
+        c2d.beginPath(); c2d.arc(0, 0, half, 0, Math.PI * 2); c2d.fill(); c2d.stroke();
+        c2d.fillStyle = '#fbbf24';
+        c2d.beginPath();
+        c2d.moveTo(0, -half * 0.65);
+        c2d.lineTo(half * 0.6, half * 0.45);
+        c2d.lineTo(-half * 0.6, half * 0.45);
+        c2d.closePath(); c2d.fill();
+      } else if (vType === 'console') {
+        c2d.fillStyle = '#0f172a'; c2d.strokeStyle = '#22d3ee'; c2d.lineWidth = 2;
+        c2d.beginPath(); c2d.roundRect(-half, -half * 0.65, half * 2, half * 1.3, 4); c2d.fill(); c2d.stroke();
+        c2d.fillStyle = 'rgba(34, 211, 238, 0.38)';
+        c2d.fillRect(-half * 0.75, -half * 0.4, half * 1.5, half * 0.45);
+      } else if (vType === 'cryopod') {
+        c2d.fillStyle = '#091526'; c2d.strokeStyle = '#38bdf8'; c2d.lineWidth = 2;
+        c2d.beginPath(); c2d.roundRect(-half * 0.7, -half * 1.05, half * 1.4, half * 2.1, half * 0.6); c2d.fill(); c2d.stroke();
+        c2d.fillStyle = 'rgba(56, 189, 248, 0.3)';
+        c2d.beginPath(); c2d.roundRect(-half * 0.45, -half * 0.75, half * 0.9, half * 1.5, half * 0.4); c2d.fill();
+      } else if (vType === 'container') {
+        c2d.fillStyle = '#0c192c'; c2d.strokeStyle = '#0284c7'; c2d.lineWidth = 2.2;
+        c2d.beginPath(); c2d.roundRect(-half, -half * 0.75, half * 2, half * 1.5, 5); c2d.fill(); c2d.stroke();
+      } else if (vType === 'turbine') {
+        c2d.fillStyle = '#0b1522'; c2d.strokeStyle = '#38bdf8'; c2d.lineWidth = 2.4;
+        c2d.beginPath(); c2d.arc(0, 0, half, 0, Math.PI * 2); c2d.fill(); c2d.stroke();
+        c2d.fillStyle = '#38bdf8';
+        c2d.beginPath(); c2d.arc(0, 0, half * 0.35, 0, Math.PI * 2); c2d.fill();
+      } else if (vType === 'pillar') {
+        c2d.fillStyle = '#1e293b'; c2d.strokeStyle = '#eab308'; c2d.lineWidth = 2;
+        c2d.beginPath(); c2d.arc(0, 0, half * 0.82, 0, Math.PI * 2); c2d.fill(); c2d.stroke();
+      } else if (vType === 'barricade') {
+        c2d.fillStyle = '#271c0c'; c2d.strokeStyle = '#f59e0b'; c2d.lineWidth = 2;
+        c2d.beginPath(); c2d.roundRect(-half * 0.95, -half * 0.4, half * 1.9, half * 0.8, 3); c2d.fill(); c2d.stroke();
+      } else if (vType === 'rubble') {
+        c2d.fillStyle = '#334155'; c2d.strokeStyle = '#64748b'; c2d.lineWidth = 1.5;
+        [[-0.4, -0.3, 0.45], [0.35, -0.2, 0.38], [-0.1, 0.35, 0.42]].forEach(([ox, oy, rr]) => {
+          c2d.beginPath(); c2d.arc(ox * half, oy * half, rr * half, 0, Math.PI * 2); c2d.fill(); c2d.stroke();
+        });
+      } else {
+        c2d.fillStyle = '#1c1917'; c2d.strokeStyle = '#d97706'; c2d.lineWidth = 2;
+        c2d.beginPath(); c2d.roundRect(-half * 0.8, -half * 0.8, half * 1.6, half * 1.6, 4); c2d.fill(); c2d.stroke();
+      }
+
+      c2d.restore();
+    }
+
+    // =========================================================================
+    // 5. ПРИЙМАЛЬНИЙ ПУНКТ З SECTOR1.HTML ТА КЕРУВАННЯ СТАНОМ
+    // =========================================================================
+    const MQTT_BROKER_URL = 'wss://broker.emqx.io:8084/mqtt';
+    const MQTT_TOPIC_COMMAND = 'entropia_ark_317/group_command_v4';
+    const MQTT_TOPIC_ZONA_SYNC = 'entropia_ark_317/zona_tabletop_v1';
+    const MQTT_TOPIC_DICE_SYNC = 'entropia_ark_317/vitruvia_dice_v1';
+
+    const clientId = 'entropia_danger_' + Math.random().toString(36).substring(2, 9);
+    const COORD_LETTERS = ['А','Б','В','Г','Д','Е','Ж','З','И','К','Л','М','Н','О','П','Р','С','Т','У','Ф','Х','Ц','Ч','Ш','Щ','Ю','Я','АА','АБ','АВ','АГ','АД','АЕ','АЖ','АЗ','АИ'];
+
+    let state = {
+      structureId: 'gh_eden_alpha',
+      title: 'Біокупол «Едем-Альфа»',
+      archetype: 'round_biodome',
+      seedInt: 317101,
+      variationSalt: 0,
+      sectorId: 1,
+      cellMeters: 1.5,
+      grid: { count: 30, offsetX: 0, offsetY: 0, padding: 28, opacity: 0.25, show: true },
+      bg: { dataUrl: null, mqttDataUrl: null },
+      currentFloorIndex: 0,
+      floors: [createFloorLayer(1, 'ЯРУС 1', 'Головний Купол')],
+      diceLog: []
+    };
+
+    let isGM = false;
+    let activeCharacter = { name: 'Дослідник', avatar: null, hp: '100/100', shield: '20' };
+    let characterStatsList = [];
+    let characterSkillsList = [{ name: 'Без навички', bonus: 0 }];
+
+    let selectedStatIndex = 0;
+    let selectedSkillIndex = 0;
+    let manualDiceModifier = 0;
+    let currentFinalPool = 3;
+
+    let activeSpaceMode = 'struct';
+    let activeTool = 'select';
+    let activeHazardType = 'spores';
+    let activeCatalogTab = 'general';
+
+    let leftSidebarVisible = true;
+    let rightSidebarVisible = true;
+
+    const BOARD_BASE_PX = 900;
+    let camera = { x: 0, y: 0, zoom: 1 };
+    let isPanning = false;
+    let panStart = { x: 0, y: 0 };
+    let selectedEntityId = null;
+    let isDraggingEntity = false;
+    let isPaintingCells = false;
+    let zoneDragStart = null;
+    let zoneDragCurrent = null;
+    let rulerStart = null;
+    let rulerEnd = null;
+
+    let bgImageElement = null;
+    const imageElementCache = {};
+
+    const canvas = document.getElementById('tacticalCanvas');
+    const ctx = canvas.getContext('2d');
+
+    function getStructureStorageKey(structId, title, sectorId) {
+      const clean = String(structId || title || 'default').trim().toLowerCase().replace(/\s+/g, '_');
+      return `entropia_danger_v5_s${sectorId || 1}_${clean}`;
+    }
+
+    function saveCurrentStructureToCache() {
+      try {
+        const key = getStructureStorageKey(state.structureId, state.title, state.sectorId);
+        localStorage.setItem(key, JSON.stringify(state));
+      } catch (e) {}
+    }
+
+    function readStructureEntryPayload() {
+      const params = new URLSearchParams(window.location.search);
+      let rawPayload = null;
+      try {
+        const keys = ['entropia_zona_danger_payload', 'entropia_danger_payload', 'entropia_structure_payload', 'entropia_zona_payload'];
+        for (const k of keys) {
+          const str = sessionStorage.getItem(k) || localStorage.getItem(k);
+          if (str) {
+            const parsed = JSON.parse(str);
+            if (parsed && typeof parsed === 'object') {
+              rawPayload = parsed;
+              break;
+            }
+          }
+        }
+      } catch (e) {}
+
+      const obj = rawPayload?.object || rawPayload || {};
+      const structureId = params.get('id') || obj.id || obj.structureId || 'gh_eden_alpha';
+      const canonFallback = SECTOR_1_CANON_DB[structureId] || {};
+
+      const title =
+        params.get('title') ||
+        params.get('name') ||
+        obj.title ||
+        obj.name ||
+        canonFallback.title ||
+        'Біокупол «Едем-Альфа»';
+
+      return {
+        structureId,
+        title: String(title).replace(/^Ігровий стіл:\s*/i, '').trim(),
+        objectKind: obj.objectKind || '',
+        type: params.get('type') || obj.archetype || obj.type || '',
+        badge: obj.badge || '',
+        notes: obj.notes || '',
+        seed: Number(params.get('seed') || obj.seed || canonFallback.seed || 317101),
+        sectorId: Number(params.get('sector') || rawPayload?.sectorId || 1),
+        structureData: obj.structureData || null
+      };
+    }
+
+    function initZonaDangerApp() {
+      isGM = Boolean(window.EntropiaBridge.isGM());
+      refreshCharacterFromBridge(false);
+
+      let loadedFromEmbedded = false;
+      try {
+        const embeddedRaw = document.getElementById('embedded-zona-state')?.textContent;
+        if (embeddedRaw && embeddedRaw.trim().length > 5) {
+          const parsed = JSON.parse(embeddedRaw);
+          if (parsed && parsed.floors && parsed.floors.length > 0) {
+            state = Object.assign(state, parsed);
+            loadedFromEmbedded = true;
+          }
+        }
+      } catch (e) {}
+
+      if (!loadedFromEmbedded) {
+        const entryInfo = readStructureEntryPayload();
+        const cacheKey = getStructureStorageKey(entryInfo.structureId, entryInfo.title, entryInfo.sectorId);
+        const cachedRaw = localStorage.getItem(cacheKey);
+
+        if (cachedRaw) {
+          try {
+            const cachedState = JSON.parse(cachedRaw);
+            if (cachedState && cachedState.floors) {
+              state = Object.assign(state, cachedState);
+            }
+          } catch (e) {}
+        } else {
+          state.structureId = entryInfo.structureId;
+          state.title = entryInfo.title;
+          state.sectorId = entryInfo.sectorId;
+
+          const generated = generateStructureInterior(entryInfo, 0);
+          state.archetype = generated.archetype;
+          state.seedInt = generated.seedInt;
+          state.grid.count = generated.gridCount;
+          state.floors = generated.floors;
+          state.currentFloorIndex = 0;
+          saveCurrentStructureToCache();
+        }
+      }
+
+      if (state.bg.dataUrl) loadBackgroundDataUrl(state.bg.dataUrl);
+
+      applyRoleAndCharacterUI();
+      syncSlidersWithState();
+      renderCatalogItems();
+      renderInSpaceList();
+      renderDiceLog();
+
+      setupCanvasListeners();
+      setupDraggableVitruviaModal();
+      setupCrossTabCharacterSync();
+
+      resizeCanvas();
+      resetCameraAndZoom();
+      window.addEventListener('resize', resizeCanvas);
+      initMqttConnection();
+      invalidateArchBuffer();
+    }
+
+    function switchCanonicalPreset(presetId) {
+      if (!isGM) return;
+      const preset = SECTOR_1_CANON_DB[presetId];
+      if (!preset) return;
+
+      const cacheKey = getStructureStorageKey(preset.id, preset.title, state.sectorId);
+      const cachedRaw = localStorage.getItem(cacheKey);
+      if (cachedRaw) {
+        try {
+          state = Object.assign(state, JSON.parse(cachedRaw));
+        } catch (e) {}
+      } else {
+        state.structureId = preset.id;
+        state.title = preset.title;
+        const generated = generateStructureInterior(preset, 0);
+        state.archetype = generated.archetype;
+        state.seedInt = generated.seedInt;
+        state.grid.count = generated.gridCount;
+        state.floors = generated.floors;
+        state.currentFloorIndex = 0;
+        saveCurrentStructureToCache();
+      }
+
+      applyRoleAndCharacterUI();
+      syncSlidersWithState();
+      renderInSpaceList();
+      invalidateArchBuffer();
+      publishTabletopState('SWITCH_PRESET');
+    }
+
+    function changeStructureArchetype(newArch) {
+      if (!isGM) return;
+      state.archetype = newArch;
+      regenerateCurrentStructure(false);
+    }
+
+    function regenerateCurrentStructure(useNewVariation = false) {
+      if (!isGM) return;
+      state.variationSalt = useNewVariation ? (state.variationSalt || 0) + 1 : 0;
+      const generated = generateStructureInterior({
+        sectorId: state.sectorId,
+        structureId: state.structureId,
+        title: state.title,
+        forcedArchetype: state.archetype
+      }, state.variationSalt);
+
+      state.seedInt = generated.seedInt;
+      state.grid.count = generated.gridCount;
+      state.floors = generated.floors;
+      state.currentFloorIndex = 0;
+      selectedEntityId = null;
+
+      saveCurrentStructureToCache();
+      applyRoleAndCharacterUI();
+      syncSlidersWithState();
+      renderInSpaceList();
+      invalidateArchBuffer();
+      publishTabletopState('STRUCTURE_REGENERATED');
+    }
+
+    // =========================================================================
+    // 6. КЕРУВАННЯ РОЛЯМИ ТА СТІЛ КУБИКІВ ВІТРУВІЯ (💠)
+    // =========================================================================
+    function applyRoleAndCharacterUI() {
+      document.body.classList.toggle('is-gm', Boolean(isGM));
+
+      document.getElementById('breadcrumbSector').textContent = `Сектор ${state.sectorId || 'I'}`;
+      document.getElementById('breadcrumbZoneTitle').textContent = state.title;
+      document.getElementById('structureSeedBadge').textContent = `#${String(state.seedInt || 317).slice(0, 6)}`;
+
+      const presetSel = document.getElementById('presetStructureSelect');
+      if (presetSel && SECTOR_1_CANON_DB[state.structureId]) {
+        presetSel.value = state.structureId;
+      }
+      const archSel = document.getElementById('structArchetypeSelect');
+      if (archSel) archSel.value = state.archetype;
+
+      const roleIcon = document.getElementById('roleIcon');
+      const roleLabel = document.getElementById('roleLabel');
+      const roleBadge = document.getElementById('roleBadge');
+      const adminBtnText = document.getElementById('adminBtnText');
+      const rightToggleBtnText = document.getElementById('rightToggleBtnText');
+
+      document.getElementById('charNameHeader').textContent = activeCharacter.name || 'Дослідник';
+
+      if (isGM) {
+        roleIcon.textContent = '👑';
+        roleLabel.textContent = 'Режим Майстра';
+        roleBadge.className = 'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-950/80 border border-emerald-500/60 text-xs font-semibold text-emerald-300';
+        adminBtnText.textContent = 'Вийти з GM';
+        rightToggleBtnText.textContent = 'Об\'єкти';
+      } else {
+        roleIcon.textContent = '👁️';
+        roleLabel.textContent = 'Режим Гравця';
+        roleBadge.className = 'hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700/80 text-xs font-medium text-slate-300';
+        adminBtnText.textContent = 'Вхід Адміна';
+        rightToggleBtnText.textContent = 'Персонаж';
+        if (['zone', 'wall_cell', 'door_cell', 'floor_cell', 'hazard', 'erase_cell', 'fog_brush', 'text'].includes(activeTool)) {
+          setActiveTool('select');
+        }
+      }
+
+      renderVitruviaSheetControls();
+      renderPlayerSidebarSheet();
+      renderCatalogItems();
+      renderInSpaceList();
+      updateInspectorPanel();
+      updateFloorIndicatorUI();
+      setTimeout(() => { resizeCanvas(); invalidateArchBuffer(); }, 20);
+    }
+
+    function handleAdminAuthClick() {
+      if (isGM) {
+        isGM = false;
+        window.EntropiaBridge._gmOverride = false;
+        applyRoleAndCharacterUI();
+        return;
+      }
+      const pwd = prompt('Введіть пароль Архітектора (Майстра):');
+      if (pwd === null) return;
+      if (window.EntropiaBridge.verifyAdminPassword(pwd)) {
+        isGM = true;
+        window.EntropiaBridge._gmOverride = true;
+        leftSidebarVisible = true;
+        applyRoleAndCharacterUI();
+      } else {
+        alert('Невірний пароль Адміна!');
+      }
+    }
+
+    function editStructureTitle() {
+      if (!isGM) return;
+      const next = prompt('Назва локації:', state.title);
+      if (next && next.trim()) {
+        state.title = next.trim();
+        if (confirm('Перегенерувати план структури відповідно до нової назви?')) {
+          state.structureId = 'custom_' + hashStringToSeed(state.title);
+          const generated = generateStructureInterior({ title: state.title, sectorId: state.sectorId }, 0);
+          state.archetype = generated.archetype;
+          state.seedInt = generated.seedInt;
+          state.grid.count = generated.gridCount;
+          state.floors = generated.floors;
+          state.currentFloorIndex = 0;
+        }
+        saveCurrentStructureToCache();
+        applyRoleAndCharacterUI();
+        invalidateArchBuffer();
+        publishTabletopState('TITLE_EDIT');
+      }
+    }
+
+    function toggleLeftSidebar(force) {
+      if (!isGM) return;
+      leftSidebarVisible = typeof force === 'boolean' ? force : !leftSidebarVisible;
+      document.getElementById('leftSidebar').style.display = leftSidebarVisible ? 'flex' : 'none';
+      resizeCanvas();
+    }
+
+    function toggleRightSidebar(force) {
+      rightSidebarVisible = typeof force === 'boolean' ? force : !rightSidebarVisible;
+      document.getElementById('rightSidebar').style.display = rightSidebarVisible ? 'flex' : 'none';
+      resizeCanvas();
+    }
+
+    function renderVitruviaDieFaceSVG(faceType, index = 0) {
+      const delayMs = index * 35;
+      if (faceType === 'full') {
+        return `<div style="animation-delay: ${delayMs}ms" class="vitruvia-die-anim w-12 h-12 rounded-xl bg-emerald-950/85 border-2 border-emerald-400 shadow-[0_0_16px_rgba(16,185,129,0.5)] flex items-center justify-center relative" title="Повний знак 💠 (2 очки)"><span class="text-2xl leading-none drop-shadow-[0_0_8px_rgba(34,211,238,0.95)] select-none">💠</span></div>`;
+      } else if (faceType === 'half') {
+        return `<div style="animation-delay: ${delayMs}ms" class="vitruvia-die-anim w-12 h-12 rounded-xl bg-cyan-950/80 border-2 border-cyan-400 shadow-[0_0_12px_rgba(34,211,238,0.35)] flex items-center justify-center relative overflow-hidden" title="Пів знака 💠 (1 очко)"><span class="text-2xl leading-none opacity-15 grayscale select-none absolute">💠</span><span class="text-2xl leading-none drop-shadow-[0_0_6px_rgba(34,211,238,0.85)] half-party-symbol select-none relative z-10">💠</span><div class="absolute inset-y-1.5 left-1/2 -translate-x-1/2 w-px border-l border-dashed border-cyan-300/80 z-20"></div></div>`;
+      } else {
+        return `<div style="animation-delay: ${delayMs}ms" class="vitruvia-die-anim w-12 h-12 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-center relative opacity-60" title="Пуста грань (0 очок)"><svg class="w-6 h-6 text-slate-700" viewBox="0 0 40 40" fill="none"><rect x="11" y="11" width="18" height="18" rx="2" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" transform="rotate(45 20 20)" /></svg></div>`;
+      }
+    }
+
+    function performCanonicalVitruviaRoll(poolCount, statName, skillName) {
+      let bridgeRes = null;
+      try { bridgeRes = window.EntropiaBridge.rollVitruvia({ pool: poolCount, diceCount: poolCount, statName, skillName, character: activeCharacter }); } catch (e) {}
+      if (bridgeRes && Array.isArray(bridgeRes.faces) && bridgeRes.faces.length === poolCount) return bridgeRes;
+
+      const faces = [];
+      let totalPoints = 0, fullCount = 0, halfCount = 0, emptyCount = 0;
+      for (let i = 0; i < poolCount; i++) {
+        const f = VITRUVIA_DIE_FACES[Math.floor(Math.random() * 6)];
+        faces.push(f);
+        totalPoints += f.points;
+        if (f.type === 'full') fullCount++;
+        else if (f.type === 'half') halfCount++;
+        else emptyCount++;
+      }
+      return { poolCount, totalPoints, fullCount, halfCount, emptyCount, faces, statName, skillName };
+    }
+
+    function refreshCharacterFromBridge(showToast = false) {
+      let rawChar = {};
+      try { rawChar = window.EntropiaBridge.getCharacter() || {}; } catch (e) {}
+      if (rawChar.character && typeof rawChar.character === 'object') rawChar = Object.assign({}, rawChar, rawChar.character);
+      if (rawChar.data && typeof rawChar.data === 'object') rawChar = Object.assign({}, rawChar, rawChar.data);
+      activeCharacter = Object.assign(activeCharacter, rawChar);
+
+      const extractedStats = [];
+      const extractedSkills = [{ name: 'Без навички', bonus: 0 }];
+
+      const pushRealSkill = (rawSkillName, rawBonus) => {
+        if (!rawSkillName) return;
+        const cleanName = translateSkillName(rawSkillName);
+        if (!cleanName || cleanName.toLowerCase() === 'без навички') return;
+        const bonusVal = Number(rawBonus ?? 0);
+        if (!extractedSkills.some(s => s.name.toLowerCase() === cleanName.toLowerCase())) {
+          extractedSkills.push({ name: cleanName, bonus: isNaN(bonusVal) ? 1 : bonusVal });
+        }
+      };
+
+      const rawStatsSource = rawChar.stats || rawChar.attributes || rawChar.characteristics || rawChar.statList || rawChar.params || rawChar.характеристики;
+      if (Array.isArray(rawStatsSource) && rawStatsSource.length > 0) {
+        rawStatsSource.forEach((st, idx) => {
+          if (!st) return;
+          const rawKey = st.key || st.id || st.code || st.name || `stat_${idx}`;
+          const rawLabel = st.name || st.label || st.title || rawKey;
+          const meta = resolveStatMeta(rawKey, rawLabel, st.icon);
+          const val = Number(st.value ?? st.level ?? st.dice ?? st.score ?? st.base ?? 1);
+          extractedStats.push({ key: String(rawKey).toLowerCase(), name: meta.name, icon: meta.icon, value: isNaN(val) ? 1 : Math.max(0, val) });
+        });
+      } else if (rawStatsSource && typeof rawStatsSource === 'object') {
+        Object.entries(rawStatsSource).forEach(([k, v]) => {
+          if (v === null || v === undefined) return;
+          if (typeof v === 'number' || (typeof v === 'string' && v.trim() !== '' && !isNaN(Number(v)))) {
+            const meta = resolveStatMeta(k, null, null);
+            extractedStats.push({ key: k.toLowerCase(), name: meta.name, icon: meta.icon, value: Math.max(0, Number(v)) });
+          } else if (typeof v === 'object') {
+            const meta = resolveStatMeta(k, v.name || v.label || v.title, v.icon);
+            const val = Number(v.value ?? v.level ?? v.dice ?? v.score ?? v.base ?? 1);
+            extractedStats.push({ key: k.toLowerCase(), name: meta.name, icon: meta.icon, value: isNaN(val) ? 1 : Math.max(0, val) });
+          }
+        });
+      }
+
+      if (extractedStats.length === 0) {
+        Object.entries(rawChar).forEach(([k, v]) => {
+          const cleanK = k.toLowerCase().trim();
+          if (['id', 'hp', 'shield', 'armor', 'level', 'exp', 'xp', 'age', 'sector', 'sectorid'].includes(cleanK)) return;
+          if (STAT_DICTIONARY[cleanK] && (typeof v === 'number' || (typeof v === 'string' && !isNaN(Number(v))))) {
+            const meta = STAT_DICTIONARY[cleanK];
+            extractedStats.push({ key: cleanK, name: meta.name, icon: meta.icon, value: Math.max(0, Number(v)) });
+          }
+        });
+      }
+
+      characterStatsList = extractedStats.length > 0 ? extractedStats : JSON.parse(JSON.stringify(FALLBACK_STATS));
+
+      const rawSkillsSource = rawChar.skills || rawChar.навички || rawChar.skillList || rawChar.proficiencies || rawChar.abilities || rawChar.talents;
+      if (Array.isArray(rawSkillsSource)) {
+        rawSkillsSource.forEach(sk => {
+          if (!sk) return;
+          if (typeof sk === 'string') pushRealSkill(sk, 1);
+          else if (typeof sk === 'object') pushRealSkill(sk.name || sk.label || sk.title || sk.key, sk.bonus ?? sk.value ?? sk.level ?? sk.mod ?? 1);
+        });
+      } else if (rawSkillsSource && typeof rawSkillsSource === 'object') {
+        Object.entries(rawSkillsSource).forEach(([k, v]) => {
+          if (!v) return;
+          if (v === true) pushRealSkill(k, 1);
+          else if (typeof v === 'number' || (typeof v === 'string' && !isNaN(Number(v)))) pushRealSkill(k, Number(v));
+          else if (typeof v === 'object') pushRealSkill(v.name || v.label || v.title || k, v.bonus ?? v.value ?? v.level ?? 0);
+        });
+      }
+
+      characterSkillsList = extractedSkills;
+      if (selectedStatIndex >= characterStatsList.length) selectedStatIndex = 0;
+      if (selectedSkillIndex >= characterSkillsList.length) selectedSkillIndex = 0;
+
+      renderVitruviaSheetControls();
+      renderPlayerSidebarSheet();
+      if (showToast) document.getElementById('vitruviaCharNameLabel').textContent = `${activeCharacter.name} ✓`;
+    }
+
+    function setupCrossTabCharacterSync() {
+      window.addEventListener('storage', (e) => {
+        if (e.key && (e.key.includes('character') || e.key.includes('entropia') || e.key.includes('vitruvia'))) {
+          refreshCharacterFromBridge(true);
+          applyRoleAndCharacterUI();
+        }
+      });
+    }
+
+    function renderVitruviaSheetControls() {
+      document.getElementById('vitruviaCharNameLabel').textContent = activeCharacter.name || 'Дослідник';
+      document.getElementById('vitruviaStatsGrid').innerHTML = characterStatsList.map((st, idx) => `
+        <button onclick="selectVitruviaStat(${idx})"
+                class="${idx === selectedStatIndex ? 'stat-card-active' : 'bg-slate-900/90 border-slate-800 hover:border-slate-700'} p-2 rounded-xl border transition flex items-center justify-between text-left gap-1">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <span class="text-sm shrink-0">${st.icon}</span>
+            <span class="text-[11px] font-medium text-slate-200 truncate" title="${st.name}">${st.name}</span>
+          </div>
+          <span class="px-1.5 py-0.5 rounded bg-slate-950 font-mono-tech font-bold text-emerald-400 text-xs shrink-0">${st.value}</span>
+        </button>
+      `).join('');
+
+      const skillsRow = document.getElementById('vitruviaSkillsRow');
+      skillsRow.innerHTML = characterSkillsList.length <= 1
+        ? `<button onclick="selectVitruviaSkill(0)" class="skill-chip-active px-2.5 py-1 rounded-lg border text-[11px] font-medium">Без навички (+0)</button>`
+        : characterSkillsList.map((sk, idx) => `
+            <button onclick="selectVitruviaSkill(${idx})"
+                    class="${idx === selectedSkillIndex ? 'skill-chip-active' : 'bg-slate-900 border-slate-800 text-slate-300 hover:text-white'} px-2.5 py-1 rounded-lg border text-[11px] font-medium transition flex items-center gap-1">
+              <span>${sk.name}</span>
+              <span class="font-mono-tech text-[10px] text-cyan-300">(${sk.bonus >= 0 ? '+' + sk.bonus : sk.bonus})</span>
+            </button>
+          `).join('');
+      recalculateVitruviaPool();
+    }
+
+    function renderPlayerSidebarSheet() {
+      document.getElementById('playerSheetName').textContent = activeCharacter.name || 'Дослідник';
+      document.getElementById('playerSheetHp').textContent = activeCharacter.hp || '100/100';
+      document.getElementById('playerSheetShield').textContent = activeCharacter.shield || '20';
+      if (activeCharacter.avatar) {
+        document.getElementById('playerAvatarBox').innerHTML = `<img src="${activeCharacter.avatar}" class="w-full h-full object-cover" />`;
+      }
+      const listEl = document.getElementById('playerSidebarStatsList');
+      if (listEl) {
+        listEl.innerHTML = characterStatsList.map((st, idx) => `
+          <button onclick="quickOpenStatRoll(${idx})"
+                  class="p-2 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-emerald-500/50 transition flex items-center justify-between text-left gap-1">
+            <span class="truncate text-[11px] text-slate-200">${st.icon} ${st.name}</span>
+            <span class="font-mono-tech font-bold text-emerald-400 text-xs shrink-0">${st.value}💠</span>
+          </button>
+        `).join('');
+      }
+      const skillsBox = document.getElementById('playerSidebarSkillsBox');
+      const skillsListEl = document.getElementById('playerSidebarSkillsList');
+      if (skillsBox && skillsListEl) {
+        const realSkills = characterSkillsList.slice(1);
+        if (realSkills.length === 0) skillsBox.classList.add('hidden');
+        else {
+          skillsBox.classList.remove('hidden');
+          skillsListEl.innerHTML = realSkills.map((sk, idx) => `
+            <button onclick="quickOpenSkillRoll(${idx + 1})"
+                    class="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 text-[11px] text-slate-200 transition flex items-center gap-1">
+              <span>${sk.name}</span>
+              <span class="font-mono-tech text-[10px] text-cyan-400">${sk.bonus >= 0 ? '+' + sk.bonus : sk.bonus}</span>
+            </button>
+          `).join('');
+        }
+      }
+    }
+
+    function quickOpenStatRoll(statIdx) { selectVitruviaStat(statIdx); toggleVitruviaModal(true); }
+    function quickOpenSkillRoll(skillIdx) { selectVitruviaSkill(skillIdx); toggleVitruviaModal(true); }
+    function selectVitruviaStat(idx) { selectedStatIndex = idx; renderVitruviaSheetControls(); }
+    function selectVitruviaSkill(idx) { selectedSkillIndex = idx; renderVitruviaSheetControls(); }
+    function adjustManualDiceMod(delta) { manualDiceModifier = Math.max(-10, Math.min(15, manualDiceModifier + delta)); recalculateVitruviaPool(); }
+    function resetSkillAndMod() { selectedSkillIndex = 0; manualDiceModifier = 0; renderVitruviaSheetControls(); }
+    function adjustTotalPoolDirectly(delta) { currentFinalPool = Math.max(1, Math.min(25, currentFinalPool + delta)); updatePoolFormulaUI(); }
+
+    function recalculateVitruviaPool() {
+      const stat = characterStatsList[selectedStatIndex] || { name: 'Бій', icon: '⚔️', value: 3 };
+      const skill = characterSkillsList[selectedSkillIndex] || { name: 'Без навички', bonus: 0 };
+      currentFinalPool = Math.max(1, Math.min(25, Number(stat.value) + Number(skill.bonus) + manualDiceModifier));
+      updatePoolFormulaUI();
+    }
+
+    function updatePoolFormulaUI() {
+      const stat = characterStatsList[selectedStatIndex] || { name: 'Бій', icon: '⚔️', value: 3 };
+      const skill = characterSkillsList[selectedSkillIndex] || { name: 'Без навички', bonus: 0 };
+      const totalMod = Number(skill.bonus) + manualDiceModifier;
+      const modStr = totalMod >= 0 ? `+${totalMod}` : `${totalMod}`;
+
+      document.getElementById('selectedStatBadge').textContent = `${stat.icon} ${stat.name}: ${stat.value}`;
+      document.getElementById('manualModValue').textContent = manualDiceModifier >= 0 ? `+${manualDiceModifier}` : `${manualDiceModifier}`;
+      document.getElementById('finalDicePoolCount').textContent = currentFinalPool;
+      document.getElementById('vitruviaPoolFormula').textContent = `${stat.icon} ${stat.name} (${stat.value}) ${modStr} = ${currentFinalPool} куб.`;
+      document.getElementById('rollButtonActionText').textContent = `Кинути ${currentFinalPool} ${currentFinalPool === 1 ? 'Кубик' : (currentFinalPool <= 4 ? 'Кубики' : 'Кубиків')} «Вітрувія»`;
+    }
+
+    function rollVitruviaTabletop() {
+      const stat = characterStatsList[selectedStatIndex] || { name: 'Бій', icon: '⚔️', value: 3 };
+      const skill = characterSkillsList[selectedSkillIndex] || { name: 'Без навички', bonus: 0 };
+      const skillLabel = (selectedSkillIndex > 0 && skill.name) ? ` + ${skill.name}` : '';
+
+      const rollRes = performCanonicalVitruviaRoll(currentFinalPool, stat.name, skill.name);
+      document.getElementById('rollResultTitle').textContent = `${activeCharacter.name} — ${stat.icon} ${stat.name}${skillLabel}:`;
+      document.getElementById('rollTotalPointsBadge').textContent = `${rollRes.totalPoints} ${rollRes.totalPoints === 1 ? 'очко' : (rollRes.totalPoints >= 2 && rollRes.totalPoints <= 4 ? 'очки' : 'очок')}`;
+      document.getElementById('rollBreakdownText').textContent = `💠 Повних (2): ${rollRes.fullCount} | ½💠 Півзнаків (1): ${rollRes.halfCount} | ◇ Пустих: ${rollRes.emptyCount}`;
+      document.getElementById('vitruviaDiceFacesRow').innerHTML = rollRes.faces.map((f, idx) => renderVitruviaDieFaceSVG(f.type, idx)).join('');
+
+      const symbolsString = rollRes.faces.map(f => f.type === 'full' ? '💠' : (f.type === 'half' ? '½💠' : '◇')).join(' ');
+      const logLine = `${activeCharacter.name} [${stat.icon}${stat.name}, ${rollRes.poolCount}к]: ${rollRes.totalPoints} очк. (${symbolsString})`;
+      appendDiceLog(logLine);
+      publishDiceEvent({ type: 'VITRUVIA_ROLL', logLine, rollRes, charName: activeCharacter.name });
+    }
+
+    function appendDiceLog(text) {
+      const time = new Date().toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      state.diceLog.unshift({ time, text });
+      if (state.diceLog.length > 40) state.diceLog.pop();
+      renderDiceLog();
+    }
+
+    function clearDiceLog() { state.diceLog = []; renderDiceLog(); }
+
+    function renderDiceLog() {
+      const el = document.getElementById('vitruviaRollLog');
+      if (!el) return;
+      el.innerHTML = (!state.diceLog || state.diceLog.length === 0)
+        ? `<div class="text-slate-500">Журнал кидків порожній...</div>`
+        : state.diceLog.map(item => `<div class="py-1 border-b border-slate-800/80 flex justify-between gap-2"><span class="text-slate-200">${item.text}</span><span class="text-slate-500 text-[10px] shrink-0">${item.time}</span></div>`).join('');
+    }
+
+    function toggleVitruviaModal(force) {
+      const modal = document.getElementById('vitruviaModal');
+      const next = typeof force === 'boolean' ? force : modal.classList.contains('hidden');
+      if (next) {
+        refreshCharacterFromBridge(false);
+        modal.classList.remove('hidden');
+        document.getElementById('vitruviaModalBody').classList.remove('hidden');
+      } else modal.classList.add('hidden');
+    }
+
+    function toggleVitruviaMinimize() { document.getElementById('vitruviaModalBody').classList.toggle('hidden'); }
+
+    function setupDraggableVitruviaModal() {
+      const modal = document.getElementById('vitruviaModal');
+      const handle = document.getElementById('vitruviaDragHandle');
+      let dragging = false, startX = 0, startY = 0, origLeft = 0, origTop = 0;
+      const startDrag = (cx, cy) => { dragging = true; const r = modal.getBoundingClientRect(); origLeft = r.left; origTop = r.top; startX = cx; startY = cy; };
+      const moveDrag = (cx, cy) => {
+        if (!dragging) return;
+        modal.style.left = Math.max(8, Math.min(window.innerWidth - 140, origLeft + (cx - startX))) + 'px';
+        modal.style.top = Math.max(56, Math.min(window.innerHeight - 56, origTop + (cy - startY))) + 'px';
+        modal.style.right = 'auto';
+      };
+      const endDrag = () => { dragging = false; };
+      handle.addEventListener('mousedown', (e) => { if (!e.target.closest('button')) startDrag(e.clientX, e.clientY); });
+      window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+      window.addEventListener('mouseup', endDrag);
+    }
+
+    // =========================================================================
+    // 7. ІНСТРУМЕНТИ ТА ОБ'ЄКТИ НА ЯРУСІ
+    // =========================================================================
+    function loadBackgroundDataUrl(dataUrl) {
+      if (!dataUrl) { bgImageElement = null; invalidateArchBuffer(); return; }
+      const img = new Image();
+      img.onload = () => { bgImageElement = img; invalidateArchBuffer(); };
+      img.src = dataUrl;
+    }
+
+    function clearCustomBg() {
+      if (!isGM) return;
+      state.bg.dataUrl = null;
+      bgImageElement = null;
+      saveCurrentStructureToCache();
+      invalidateArchBuffer();
+      publishTabletopState('CLEAR_BG');
+    }
+
+    function handleReturnToSectorClick() {
+      saveCurrentStructureToCache();
+      if (isGM) document.getElementById('gmExitModal').classList.remove('hidden');
+      else executeReturnToSector(false);
+    }
+
+    function closeGmExitModal() { document.getElementById('gmExitModal').classList.add('hidden'); }
+
+    function executeReturnToSector(asGroup = false) {
+      saveCurrentStructureToCache();
+      if (asGroup && isGM && window.mqttClient && window.mqttClient.connected) {
+        window.mqttClient.publish(MQTT_TOPIC_COMMAND, JSON.stringify({
+          type: 'GROUP_SECTOR_TRANSFER',
+          command: { sectorId: state.sectorId || 1, timestamp: Date.now() }
+        }));
+      }
+      window.location.href = `sector${state.sectorId || 1}.html?role=${isGM ? 'gm' : 'player'}`;
+    }
+
+    function selectSpaceMode(mode) {
+      if (!isGM) return;
+      activeSpaceMode = mode;
+      ['struct', 'grid', 'walls', 'zones', 'bg', 'tokens'].forEach(m => {
+        document.getElementById(`modeBtn_${m}`)?.classList.toggle('mode-active', m === mode);
+        document.getElementById(`spacePanel_${m}`)?.classList.toggle('hidden', m !== mode);
+      });
+      if (mode === 'zones') setActiveTool('zone');
+      else if (mode === 'walls') setActiveTool('wall_cell');
+      else setActiveTool('select');
+    }
+
+    function getCurrentFloor() { return state.floors[state.currentFloorIndex] || state.floors[0]; }
+
+    function syncSlidersWithState() {
+      document.getElementById('inputGridCount').value = state.grid.count;
+      document.getElementById('gridSizeLabel').textContent = `${state.grid.count}×${state.grid.count}`;
+      document.getElementById('inputGridOpacity').value = Math.round(state.grid.opacity * 100);
+      document.getElementById('gridOpacityLabel').textContent = `${Math.round(state.grid.opacity * 100)}%`;
+      updateFloorIndicatorUI();
+    }
+
+    function updateGridConfig() {
+      if (!isGM) return;
+      state.grid.count = Number(document.getElementById('inputGridCount').value);
+      state.grid.opacity = Number(document.getElementById('inputGridOpacity').value) / 100;
+      syncSlidersWithState();
+      saveCurrentStructureToCache();
+      invalidateArchBuffer();
+      publishTabletopState('GRID_CONFIG');
+    }
+
+    function handleBgUploadFromPC(e) {
+      if (!isGM) return;
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        state.bg.dataUrl = ev.target.result;
+        loadBackgroundDataUrl(state.bg.dataUrl);
+        saveCurrentStructureToCache();
+        publishTabletopState('BG_UPLOAD');
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeLastZone() { if (isGM) { getCurrentFloor().zones.pop(); saveCurrentStructureToCache(); requestRender(); publishTabletopState('REMOVE_ZONE'); } }
+    function selectHazardBrush(type) { activeHazardType = type; setActiveTool('hazard'); }
+
+    function changeFloorLayer(delta) {
+      const next = state.currentFloorIndex + delta;
+      if (next >= 0 && next < state.floors.length) {
+        state.currentFloorIndex = next;
+        selectedEntityId = null;
+        updateFloorIndicatorUI();
+        updateInspectorPanel();
+        renderInSpaceList();
+        invalidateArchBuffer();
+      }
+    }
+
+    function addFloorLayer() {
+      if (!isGM) return;
+      const nextNum = state.floors.length + 1;
+      const code = prompt('Код нового поверху / рівня:', `РІВЕНЬ ${nextNum}`) || `РІВЕНЬ ${nextNum}`;
+      state.floors.push(createFloorLayer(nextNum, code, code));
+      state.currentFloorIndex = state.floors.length - 1;
+      saveCurrentStructureToCache();
+      updateFloorIndicatorUI();
+      renderInSpaceList();
+      invalidateArchBuffer();
+      publishTabletopState('ADD_FLOOR');
+    }
+
+    function updateFloorIndicatorUI() {
+      const fl = getCurrentFloor();
+      document.getElementById('floorCodeBadge').textContent = fl.code || `ЯРУС ${state.currentFloorIndex + 1}`;
+      document.getElementById('floorIndicator').textContent = `${state.currentFloorIndex + 1}/${state.floors.length}`;
+    }
+
+    function setActiveTool(tool) {
+      if (!isGM && ['zone', 'wall_cell', 'door_cell', 'floor_cell', 'hazard', 'erase_cell', 'fog_brush', 'text'].includes(tool)) return;
+      activeTool = tool;
+      rulerStart = null; rulerEnd = null;
+      const btnIds = {
+        select: 'toolbarBtn_select', ruler: 'toolbarBtn_ruler', text: 'toolbarBtn_text',
+        fog_brush: 'toolbarBtn_fog', zone: 'btnActivateZoneTool', wall_cell: 'btnWallBlock',
+        door_cell: 'btnDoorCell', floor_cell: 'btnFloorCell', erase_cell: 'btnEraseCell'
+      };
+      Object.values(btnIds).forEach(id => document.getElementById(id)?.classList.remove('tool-active'));
+      if (btnIds[tool]) document.getElementById(btnIds[tool])?.classList.add('tool-active');
+      requestRender();
+    }
+
+    function toggleFogToolOrVisibility() { if (isGM) setActiveTool(activeTool === 'fog_brush' ? 'select' : 'fog_brush'); }
+
+    function toggleGridLines() {
+      state.grid.show = !state.grid.show;
+      const btn = document.getElementById('toolbarBtn_grid');
+      btn.classList.toggle('text-emerald-300', state.grid.show);
+      btn.classList.toggle('border-emerald-500/40', state.grid.show);
+      requestRender();
+    }
+
+    function switchCatalogTab(tab) {
+      activeCatalogTab = tab;
+      document.getElementById('catTab_general').className = tab === 'general'
+        ? 'py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold transition'
+        : 'py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition';
+      document.getElementById('catTab_personal').className = tab === 'personal'
+        ? 'py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold transition'
+        : 'py-1.5 rounded-lg text-slate-400 hover:text-slate-200 font-medium transition';
+      renderCatalogItems();
+    }
+
+    function renderCatalogItems() {
+      const grid = document.getElementById('catalogGrid');
+      if (!grid) return;
+      const source = activeCatalogTab === 'general' ? VECTOR_PROP_CATALOG : personalCatalog;
+      if (source.length === 0) {
+        grid.innerHTML = `<div class="col-span-2 text-center py-4 text-slate-500 text-[11px]">Немає власних картинок</div>`;
+        return;
+      }
+      grid.innerHTML = source.map(item => `
+        <div draggable="true"
+             ondragstart="handleCatalogDragStart(event, '${item.id}')"
+             onclick="spawnCatalogEntity('${item.id}')"
+             class="p-2 rounded-xl bg-[#0b0e14] hover:bg-slate-800/90 border border-slate-800 hover:border-emerald-500/50 transition flex items-center gap-2 cursor-grab active:cursor-grabbing group">
+          <span class="text-base shrink-0">${item.icon}</span>
+          <div class="min-w-0">
+            <div class="text-[11px] font-medium text-slate-200 group-hover:text-emerald-300 truncate">${item.name}</div>
+            <div class="text-[9px] text-slate-500 font-mono-tech">${item.cells || 1}×${item.cells || 1} кл.</div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function handleCatalogDragStart(e, itemId) { e.dataTransfer.setData('text/plain', itemId); }
+    function handleCanvasDragOver(e) { e.preventDefault(); }
+    function handleCanvasDrop(e) {
+      e.preventDefault();
+      if (!isGM) return;
+      const itemId = e.dataTransfer.getData('text/plain');
+      if (!itemId) return;
+      const { bx, by } = screenToBoardCoords(e.clientX, e.clientY);
+      const cell = boardToGridCell(bx, by);
+      spawnCatalogEntity(itemId, cell.col, cell.row);
+    }
+
+    function spawnCatalogEntity(itemId, targetCol, targetRow) {
+      if (!isGM) return;
+      const all = [...VECTOR_PROP_CATALOG, ...personalCatalog];
+      const tpl = all.find(x => x.id === itemId);
+      if (!tpl) return;
+
+      const floor = getCurrentFloor();
+      const center = Math.floor(state.grid.count / 2);
+      const isToken = tpl.kind === 'token';
+      const entity = {
+        id: 'ent_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
+        vType: tpl.vType || 'crate',
+        name: isToken ? tpl.name : '',
+        showLabel: isToken,
+        icon: tpl.icon || '◈',
+        imageUrl: tpl.imageUrl || null,
+        kind: tpl.kind || 'prop',
+        cells: Number(tpl.cells || 1),
+        color: tpl.color || '#10b981',
+        col: typeof targetCol === 'number' ? targetCol : center,
+        row: typeof targetRow === 'number' ? targetRow : center,
+        scale: 1,
+        rotation: 0,
+        hp: tpl.hp || '',
+        shield: tpl.shield || '',
+        hidden: false,
+        isNpc: Boolean(tpl.isNpc),
+        owner: activeCharacter.name
+      };
+
+      floor.entities.push(entity);
+      selectedEntityId = entity.id;
+      setActiveTool('select');
+      saveCurrentStructureToCache();
+      updateInspectorPanel();
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('SPAWN_ENTITY');
+    }
+
+    function spawnQuickToken(type) {
+      if (!isGM) return;
+      const mapId = { automaton: 'tok_automaton', predator: 'tok_predator', boss: 'tok_boss', npc: 'tok_npc' };
+      spawnCatalogEntity(mapId[type]);
+    }
+
+    function placeOrMoveMyToken() {
+      refreshCharacterFromBridge(false);
+      const floor = getCurrentFloor();
+      let myToken = floor.entities.find(e => e.isPlayerToken && e.owner === activeCharacter.name);
+
+      let entryCol = Math.floor(state.grid.count / 2);
+      let entryRow = state.grid.count - 4;
+      if (floor.walls[`${entryCol},${entryRow}`]) {
+        for (let r = state.grid.count - 2; r >= 2; r--) {
+          for (let c = 2; c < state.grid.count - 2; c++) {
+            if (!floor.walls[`${c},${r}`] && floor.floorTiles[`${c},${r}`] !== 'deep_water') {
+              entryCol = c; entryRow = r; break;
+            }
+          }
+          if (!floor.walls[`${entryCol},${entryRow}`]) break;
+        }
+      }
+
+      if (!myToken) {
+        myToken = {
+          id: 'player_' + activeCharacter.name.replace(/\s+/g, '_'),
+          vType: 'token',
+          name: activeCharacter.name,
+          showLabel: true,
+          icon: '🚶',
+          imageUrl: activeCharacter.avatar || null,
+          kind: 'token',
+          cells: 1,
+          color: '#22d3ee',
+          col: entryCol,
+          row: entryRow,
+          scale: 1,
+          rotation: 0,
+          hp: activeCharacter.hp || '100/100',
+          shield: activeCharacter.shield || '20',
+          hidden: false,
+          isPlayerToken: true,
+          isNpc: false,
+          owner: activeCharacter.name
+        };
+        floor.entities.push(myToken);
+      } else {
+        myToken.name = activeCharacter.name;
+        if (activeCharacter.avatar) myToken.imageUrl = activeCharacter.avatar;
+      }
+
+      selectedEntityId = myToken.id;
+      setActiveTool('select');
+      saveCurrentStructureToCache();
+      centerCameraOnCell(myToken.col, myToken.row);
+      updateInspectorPanel();
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('PLAYER_TOKEN_PLACE');
+    }
+
+    function handleCustomObjectUpload(e) {
+      if (!isGM) return;
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const cells = Number(document.getElementById('uploadCellsSize').value || 1);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        registerCustomCatalogAsset(file.name.replace(/\.[^/.]+$/, ''), ev.target.result, cells);
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function promptCustomObjectUrl() {
+      if (!isGM) return;
+      const url = prompt('Введіть URL зображення (PNG/JPG/WebP):');
+      if (!url || !url.trim()) return;
+      const cells = Number(document.getElementById('uploadCellsSize').value || 1);
+      registerCustomCatalogAsset('Об\'єкт', url.trim(), cells);
+    }
+
+    function registerCustomCatalogAsset(name, imageUrl, cells) {
+      const item = {
+        id: 'custom_' + Date.now(), name, icon: '🖼️', imageUrl,
+        category: 'personal', kind: 'prop',
+        cells: Math.max(1, Math.min(8, cells || 1)),
+        color: '#22d3ee'
+      };
+      personalCatalog.push(item);
+      switchCatalogTab('personal');
+      spawnCatalogEntity(item.id);
+    }
+
+    function updateInspectorPanel() {
+      const box = document.getElementById('objectInspector');
+      if (!box) return;
+      const ent = getCurrentFloor().entities.find(e => e.id === selectedEntityId);
+      if (!ent || !isGM) { box.classList.add('hidden'); return; }
+      box.classList.remove('hidden');
+      document.getElementById('inspName').value = ent.name || '';
+      document.getElementById('inspCells').value = ent.cells || 1;
+      document.getElementById('inspScale').value = ent.scale || 1;
+      document.getElementById('inspScaleLabel').textContent = Number(ent.scale || 1).toFixed(1);
+      document.getElementById('inspRotation').value = ent.rotation || 0;
+      document.getElementById('inspRotLabel').textContent = ent.rotation || 0;
+      document.getElementById('inspHidden').checked = Boolean(ent.hidden);
+      document.getElementById('inspShowLabel').checked = Boolean(ent.showLabel);
+    }
+
+    function applyInspectorChanges() {
+      if (!isGM) return;
+      const ent = getCurrentFloor().entities.find(e => e.id === selectedEntityId);
+      if (!ent) return;
+      ent.name = document.getElementById('inspName').value;
+      ent.cells = Math.max(1, Math.min(6, Number(document.getElementById('inspCells').value || 1)));
+      ent.scale = Number(document.getElementById('inspScale').value);
+      ent.rotation = Number(document.getElementById('inspRotation').value);
+      ent.hidden = document.getElementById('inspHidden').checked;
+      ent.showLabel = document.getElementById('inspShowLabel').checked;
+      document.getElementById('inspScaleLabel').textContent = ent.scale.toFixed(1);
+      document.getElementById('inspRotLabel').textContent = ent.rotation;
+      saveCurrentStructureToCache();
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('UPDATE_ENTITY');
+    }
+
+    function deleteSelectedEntity() { if (selectedEntityId) deleteEntityById(selectedEntityId); }
+
+    function deleteEntityById(id) {
+      const floor = getCurrentFloor();
+      const ent = floor.entities.find(e => e.id === id);
+      if (!ent || (!isGM && ent.owner !== activeCharacter.name)) return;
+      floor.entities = floor.entities.filter(e => e.id !== id);
+      if (selectedEntityId === id) { selectedEntityId = null; updateInspectorPanel(); }
+      saveCurrentStructureToCache();
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('DELETE_ENTITY');
+    }
+
+    function clearFloorEntities() {
+      if (!isGM) return;
+      getCurrentFloor().entities = [];
+      selectedEntityId = null;
+      saveCurrentStructureToCache();
+      updateInspectorPanel();
+      renderInSpaceList();
+      requestRender();
+      publishTabletopState('CLEAR_FLOOR');
+    }
+
+    function renderInSpaceList() {
+      if (!isGM) return;
+      const floor = getCurrentFloor();
+      const gmCounter = document.getElementById('inSpaceCounter');
+      const gmContainer = document.getElementById('inSpaceListContainer');
+      if (!gmCounter || !gmContainer) return;
+
+      gmCounter.textContent = floor.entities.length;
+      gmContainer.innerHTML = floor.entities.length === 0
+        ? `<div class="text-slate-500 text-[11px] py-3 text-center">На ярусі немає об'єктів</div>`
+        : floor.entities.map(ent => {
+            const coord = `${COORD_LETTERS[ent.col] || 'А'}-${ent.row + 1}`;
+            const label = ent.name || ent.vType || 'Об\'єкт';
+            return `
+              <div onclick="focusEntityFromList('${ent.id}')"
+                   class="px-2.5 py-1.5 rounded-xl border ${ent.id === selectedEntityId ? 'bg-emerald-950/50 border-emerald-500/60' : 'bg-[#0b0e14] border-slate-800 hover:border-slate-700'} flex items-center justify-between cursor-pointer transition">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="text-xs font-mono-tech text-cyan-400">${coord}</span>
+                  <span class="text-[11px] font-medium text-slate-200 truncate">${label} ${ent.hidden ? '🙈' : ''}</span>
+                </div>
+                <button onclick="event.stopPropagation(); deleteEntityById('${ent.id}')" class="p-1 text-slate-500 hover:text-rose-400">🗑️</button>
+              </div>
+            `;
+          }).join('');
+    }
+
+    function focusEntityFromList(id) {
+      const ent = getCurrentFloor().entities.find(e => e.id === id);
+      if (!ent) return;
+      selectedEntityId = id;
+      centerCameraOnCell(ent.col, ent.row);
+      updateInspectorPanel();
+      renderInSpaceList();
+      requestRender();
+    }
+
+    // =========================================================================
+    // 8. РЕНДЕРИНГ АРХІТЕКТУРИ НА OFFSCREEN CANVAS ТА ГОЛОВНОМУ ПОЛІ
+    // =========================================================================
+    function rebuildArchitectureBuffer() {
+      const dpr = 2;
+      archBufferCanvas.width = BOARD_BASE_PX * dpr;
+      archBufferCanvas.height = BOARD_BASE_PX * dpr;
+      archCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const pad = state.grid.padding;
+      const innerSize = BOARD_BASE_PX - pad * 2;
+      const count = state.grid.count;
+      const cellSize = innerSize / count;
+      const floor = getCurrentFloor();
+
+      archCtx.fillStyle = '#060a12';
+      archCtx.fillRect(0, 0, BOARD_BASE_PX, BOARD_BASE_PX);
+
+      if (bgImageElement) {
+        archCtx.drawImage(bgImageElement, pad, pad, innerSize, innerSize);
+      }
+
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          const key = `${c},${r}`;
+          const tType = floor.floorTiles?.[key];
+          if (!tType) continue;
+
+          const x = pad + c * cellSize;
+          const y = pad + r * cellSize;
+
+          if (tType === 'grass') {
+            archCtx.fillStyle = (r + c) % 2 === 0 ? '#1b4d3e' : '#164235';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+          } else if (tType === 'water') {
+            archCtx.fillStyle = (r + c) % 2 === 0 ? '#0e7490' : '#0891b2';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+          } else if (tType === 'deep_water') {
+            archCtx.fillStyle = '#082f49';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+          } else if (tType === 'stone_path') {
+            archCtx.fillStyle = '#94a3b8';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+            archCtx.strokeStyle = 'rgba(51, 65, 85, 0.35)';
+            archCtx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+          } else if (tType === 'cyan_ring') {
+            archCtx.fillStyle = '#083344';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+            archCtx.strokeStyle = 'rgba(34, 211, 238, 0.55)';
+            archCtx.lineWidth = 1.2;
+            archCtx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+          } else if (tType === 'gold_trim') {
+            archCtx.fillStyle = '#271e0b';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+            archCtx.strokeStyle = 'rgba(251, 191, 36, 0.5)';
+            archCtx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+          } else if (tType === 'barrier_wall') {
+            archCtx.fillStyle = '#3b0718';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+            archCtx.strokeStyle = '#f43f5e';
+            archCtx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+          } else if (tType === 'car_floor') {
+            archCtx.fillStyle = '#162234';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+            archCtx.strokeStyle = 'rgba(56, 189, 248, 0.18)';
+            archCtx.strokeRect(x + 1, y + 1, cellSize - 2, cellSize - 2);
+          } else if (tType === 'grate') {
+            archCtx.fillStyle = '#111927';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+            archCtx.strokeStyle = 'rgba(71, 85, 105, 0.35)';
+            archCtx.beginPath();
+            archCtx.moveTo(x, y + cellSize / 2); archCtx.lineTo(x + cellSize, y + cellSize / 2);
+            archCtx.moveTo(x + cellSize / 2, y); archCtx.lineTo(x + cellSize / 2, y + cellSize);
+            archCtx.stroke();
+          } else if (tType === 'metal') {
+            archCtx.fillStyle = (r + c) % 2 === 0 ? '#101929' : '#0d1522';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+            archCtx.strokeStyle = 'rgba(34, 211, 238, 0.1)';
+            archCtx.strokeRect(x + 1.5, y + 1.5, cellSize - 3, cellSize - 3);
+          } else {
+            archCtx.fillStyle = (r + c) % 2 === 0 ? '#16202e' : '#121a26';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+          }
+        }
+      }
+
+      if (Array.isArray(floor.spokes)) {
+        floor.spokes.forEach(sp => {
+          const centerPx = pad + (sp.cx + 0.5) * cellSize;
+          const centerPy = pad + (sp.cy + 0.5) * cellSize;
+          const maxR = sp.outerR * cellSize;
+          archCtx.save();
+          archCtx.strokeStyle = sp.color || 'rgba(251, 191, 36, 0.5)';
+          archCtx.lineWidth = sp.isBeacon ? 2.5 : 3.2;
+          for (let i = 0; i < (sp.count || 8); i++) {
+            const a = (i * Math.PI * 2) / (sp.count || 8);
+            archCtx.beginPath();
+            archCtx.moveTo(centerPx, centerPy);
+            archCtx.lineTo(centerPx + Math.cos(a) * maxR, centerPy + Math.sin(a) * maxR);
+            archCtx.stroke();
+          }
+          if (sp.isBeacon) {
+            [0.39, 0.69, 1.0].forEach((ratio, idx) => {
+              archCtx.beginPath();
+              archCtx.arc(centerPx, centerPy, maxR * ratio, 0, Math.PI * 2);
+              archCtx.strokeStyle = idx === 2 ? '#fbbf24' : '#22d3ee';
+              archCtx.lineWidth = idx === 2 ? 3.5 : 2.8;
+              archCtx.stroke();
+            });
+          } else if (sp.isBiodome) {
+            archCtx.beginPath();
+            archCtx.arc(centerPx, centerPy, maxR, 0, Math.PI * 2);
+            archCtx.strokeStyle = sp.color;
+            archCtx.lineWidth = 3.5;
+            archCtx.stroke();
+          }
+          archCtx.restore();
+        });
+      }
+
+      if (Array.isArray(floor.rails)) {
+        floor.rails.forEach(rl => {
+          archCtx.save();
+          archCtx.strokeStyle = '#38bdf8';
+          archCtx.lineWidth = 2.4;
+          archCtx.setLineDash([7, 5]);
+          if (rl.isVertical) {
+            const rx1 = pad + (rl.trackCenter - 0.5) * cellSize;
+            const rx2 = pad + (rl.trackCenter + 1.5) * cellSize;
+            archCtx.beginPath();
+            archCtx.moveTo(rx1, pad + cellSize); archCtx.lineTo(rx1, pad + innerSize - cellSize);
+            archCtx.moveTo(rx2, pad + cellSize); archCtx.lineTo(rx2, pad + innerSize - cellSize);
+            archCtx.stroke();
+          }
+          archCtx.restore();
+        });
+      }
+
+      archCtx.save();
+      archCtx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          if (floor.walls[`${c},${r}`]) {
+            archCtx.fillRect(pad + c * cellSize + 3, pad + r * cellSize + 4, cellSize, cellSize);
+          }
+        }
+      }
+      archCtx.restore();
+
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          const key = `${c},${r}`;
+          const x = pad + c * cellSize;
+          const y = pad + r * cellSize;
+
+          if (floor.doors && floor.doors[key]) {
+            archCtx.fillStyle = 'rgba(34, 211, 238, 0.18)';
+            archCtx.fillRect(x + 2, y + 2, cellSize - 4, cellSize - 4);
+            archCtx.strokeStyle = '#22d3ee';
+            archCtx.lineWidth = 1.6;
+            archCtx.strokeRect(x + 3, y + 3, cellSize - 6, cellSize - 6);
+          }
+
+          if (floor.walls[key]) {
+            archCtx.fillStyle = '#1e293b';
+            archCtx.fillRect(x, y, cellSize, cellSize);
+            archCtx.fillStyle = '#0f172a';
+            archCtx.fillRect(x + 2.5, y + 2.5, cellSize - 5, cellSize - 5);
+
+            archCtx.strokeStyle = state.archetype === 'archangel_tower' ? '#eab308' : '#64748b';
+            archCtx.lineWidth = 1.8;
+            archCtx.beginPath();
+            if (!floor.walls[`${c},${r - 1}`]) { archCtx.moveTo(x, y + 1); archCtx.lineTo(x + cellSize, y + 1); }
+            if (!floor.walls[`${c},${r + 1}`]) { archCtx.moveTo(x, y + cellSize - 1); archCtx.lineTo(x + cellSize, y + cellSize - 1); }
+            if (!floor.walls[`${c - 1},${r}`]) { archCtx.moveTo(x + 1, y); archCtx.lineTo(x + 1, y + cellSize); }
+            if (!floor.walls[`${c + 1},${r}`]) { archCtx.moveTo(x + cellSize - 1, y); archCtx.lineTo(x + cellSize - 1, y + cellSize); }
+            archCtx.stroke();
+          }
+        }
+      }
+
+      archBufferDirty = false;
+    }
+
+    function resizeCanvas() {
+      const vp = document.getElementById('canvasViewport');
+      if (!vp) return;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = vp.clientWidth * dpr;
+      canvas.height = vp.clientHeight * dpr;
+      canvas.style.width = vp.clientWidth + 'px';
+      canvas.style.height = vp.clientHeight + 'px';
+      requestRender();
+    }
+
+    function resetCameraAndZoom() {
+      const vp = document.getElementById('canvasViewport');
+      camera.zoom = Math.max(0.38, Number(Math.min((vp.clientWidth - 40) / BOARD_BASE_PX, (vp.clientHeight - 60) / BOARD_BASE_PX, 1.15).toFixed(2)));
+      camera.x = (vp.clientWidth - BOARD_BASE_PX * camera.zoom) / 2;
+      camera.y = (vp.clientHeight - BOARD_BASE_PX * camera.zoom) / 2;
+      document.getElementById('zoomLabel').textContent = `${Math.round(camera.zoom * 100)}%`;
+      requestRender();
+    }
+
+    function centerCameraOnCell(col, row) {
+      const vp = document.getElementById('canvasViewport');
+      const pad = state.grid.padding;
+      const cellSize = (BOARD_BASE_PX - pad * 2) / state.grid.count;
+      const boardX = pad + (col + 0.5) * cellSize;
+      const boardY = pad + (row + 0.5) * cellSize;
+      camera.x = vp.clientWidth / 2 - boardX * camera.zoom;
+      camera.y = vp.clientHeight / 2 - boardY * camera.zoom;
+      requestRender();
+    }
+
+    function stepZoom(delta) {
+      const vp = document.getElementById('canvasViewport');
+      const cx = vp.clientWidth / 2, cy = vp.clientHeight / 2;
+      const wx = (cx - camera.x) / camera.zoom, wy = (cy - camera.y) / camera.zoom;
+      camera.zoom = Math.min(2.8, Math.max(0.32, camera.zoom + delta));
+      camera.x = cx - wx * camera.zoom;
+      camera.y = cy - wy * camera.zoom;
+      document.getElementById('zoomLabel').textContent = `${Math.round(camera.zoom * 100)}%`;
+      requestRender();
+    }
+
+    function screenToBoardCoords(clientX, clientY) {
+      const rect = canvas.getBoundingClientRect();
+      return { bx: (clientX - rect.left - camera.x) / camera.zoom, by: (clientY - rect.top - camera.y) / camera.zoom };
+    }
+
+    function boardToGridCell(bx, by) {
+      const pad = state.grid.padding;
+      const cellSize = (BOARD_BASE_PX - pad * 2) / state.grid.count;
+      const col = Math.floor((bx - pad) / cellSize);
+      const row = Math.floor((by - pad) / cellSize);
+      return {
+        col: Math.max(0, Math.min(state.grid.count - 1, col)),
+        row: Math.max(0, Math.min(state.grid.count - 1, row)),
+        inBounds: col >= 0 && col < state.grid.count && row >= 0 && row < state.grid.count
+      };
+    }
+
+    function requestRender() { window.requestAnimationFrame(renderTacticalCanvas); }
+
+    function renderTacticalCanvas() {
+      if (archBufferDirty) rebuildArchitectureBuffer();
+
+      const dpr = window.devicePixelRatio || 1;
+      ctx.save();
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+
+      ctx.translate(camera.x, camera.y);
+      ctx.scale(camera.zoom, camera.zoom);
+
+      const pad = state.grid.padding;
+      const innerSize = BOARD_BASE_PX - pad * 2;
+      const count = state.grid.count;
+      const cellSize = innerSize / count;
+      const floor = getCurrentFloor();
+
+      ctx.drawImage(archBufferCanvas, 0, 0, BOARD_BASE_PX, BOARD_BASE_PX);
+
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          const hazard = floor.hazards[`${c},${r}`];
+          if (!hazard) continue;
+          const x = pad + c * cellSize, y = pad + r * cellSize;
+          const cx = x + cellSize / 2, cy = y + cellSize / 2;
+          const grad = ctx.createRadialGradient(cx, cy, 2, cx, cy, cellSize * 0.6);
+          if (hazard === 'spores') {
+            grad.addColorStop(0, 'rgba(244, 63, 94, 0.55)');
+            grad.addColorStop(1, 'rgba(244, 63, 94, 0.0)');
+          } else if (hazard === 'fire') {
+            grad.addColorStop(0, 'rgba(249, 115, 22, 0.6)');
+            grad.addColorStop(1, 'rgba(249, 115, 22, 0.0)');
+          } else {
+            grad.addColorStop(0, 'rgba(132, 204, 22, 0.55)');
+            grad.addColorStop(1, 'rgba(132, 204, 22, 0.0)');
+          }
+          ctx.fillStyle = grad;
+          ctx.fillRect(x - 2, y - 2, cellSize + 4, cellSize + 4);
+        }
+      }
+
+      if (state.grid.show) {
+        ctx.strokeStyle = `rgba(34, 211, 238, ${state.grid.opacity})`;
+        ctx.lineWidth = 0.8;
+        for (let i = 0; i <= count; i++) {
+          const pos = pad + i * cellSize;
+          ctx.beginPath(); ctx.moveTo(pos, pad); ctx.lineTo(pos, pad + innerSize); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(pad, pos); ctx.lineTo(pad + innerSize, pos); ctx.stroke();
+        }
+      }
+
+      const allZones = [...floor.zones];
+      if (zoneDragStart && zoneDragCurrent) {
+        allZones.push({
+          x1: Math.min(zoneDragStart.col, zoneDragCurrent.col), y1: Math.min(zoneDragStart.row, zoneDragCurrent.row),
+          x2: Math.max(zoneDragStart.col, zoneDragCurrent.col), y2: Math.max(zoneDragStart.row, zoneDragCurrent.row),
+          label: 'Виділення...', color: '#10b981'
+        });
+      }
+      allZones.forEach(z => {
+        const zx = pad + z.x1 * cellSize, zy = pad + z.y1 * cellSize;
+        const zw = (z.x2 - z.x1 + 1) * cellSize, zh = (z.y2 - z.y1 + 1) * cellSize;
+        ctx.save();
+        ctx.strokeStyle = z.color || '#10b981'; ctx.lineWidth = 1.8; ctx.setLineDash([6, 4]);
+        ctx.strokeRect(zx + 2, zy + 2, zw - 4, zh - 4);
+        ctx.setLineDash([]);
+        if (z.label) {
+          ctx.fillStyle = z.color || '#10b981';
+          ctx.font = 'bold 11px "JetBrains Mono", monospace'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+          ctx.fillText(z.label, zx + 6, zy + 5);
+        }
+        ctx.restore();
+      });
+
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = 'bold 10px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < count; i++) {
+        const center = pad + (i + 0.5) * cellSize;
+        ctx.fillText(COORD_LETTERS[i] || String(i + 1), center, Math.max(12, pad / 2));
+        ctx.fillText(String(i + 1), Math.max(12, pad / 2), center);
+      }
+
+      floor.entities.forEach(ent => {
+        if (ent.hidden && !isGM) return;
+        if (!isGM && floor.fog[`${ent.col},${ent.row}`]) return;
+
+        const spanCells = Number(ent.cells || 1);
+        const cx = pad + (ent.col + spanCells / 2) * cellSize;
+        const cy = pad + (ent.row + spanCells / 2) * cellSize;
+        const radius = (cellSize * spanCells * 0.42) * (ent.scale || 1);
+
+        ctx.save();
+        ctx.translate(cx, cy);
+        if (ent.rotation) ctx.rotate((ent.rotation * Math.PI) / 180);
+        if (ent.hidden) ctx.globalAlpha = 0.45;
+
+        if (ent.id === selectedEntityId) {
+          ctx.beginPath(); ctx.arc(0, 0, radius + 4, 0, Math.PI * 2);
+          ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 2; ctx.stroke();
+        }
+
+        if (ent.kind === 'text') {
+          ctx.fillStyle = '#f8fafc';
+          ctx.font = `bold ${Math.round(13 * (ent.scale || 1))}px Inter, sans-serif`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(ent.name, 0, 0);
+        } else if (ent.kind === 'token') {
+          ctx.beginPath();
+          ctx.arc(0, 0, radius, 0, Math.PI * 2);
+          ctx.fillStyle = '#0f172a'; ctx.fill();
+          ctx.lineWidth = 2.5; ctx.strokeStyle = ent.color || '#22d3ee'; ctx.stroke();
+
+          if (ent.imageUrl) {
+            if (!imageElementCache[ent.imageUrl]) {
+              const im = new Image(); im.onload = () => requestRender(); im.src = ent.imageUrl;
+              imageElementCache[ent.imageUrl] = im;
+            }
+            const cached = imageElementCache[ent.imageUrl];
+            if (cached && cached.complete) {
+              ctx.save(); ctx.beginPath(); ctx.arc(0, 0, radius - 2, 0, Math.PI * 2); ctx.clip();
+              ctx.drawImage(cached, -radius, -radius, radius * 2, radius * 2); ctx.restore();
+            }
+          } else {
+            ctx.font = `${Math.max(11, radius * 1.05)}px sans-serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(ent.icon || '🚶', 0, 1);
+          }
+        } else if (ent.imageUrl) {
+          if (!imageElementCache[ent.imageUrl]) {
+            const im = new Image(); im.onload = () => requestRender(); im.src = ent.imageUrl;
+            imageElementCache[ent.imageUrl] = im;
+          }
+          const cached = imageElementCache[ent.imageUrl];
+          if (cached && cached.complete) {
+            ctx.drawImage(cached, -radius, -radius, radius * 2, radius * 2);
+          }
+        } else {
+          drawTopDownVectorProp(ctx, ent, radius, cellSize);
+        }
+        ctx.restore();
+
+        if (ent.kind === 'token' || (ent.showLabel && ent.name)) {
+          ctx.save();
+          ctx.font = '600 9.5px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.fillStyle = '#f1f5f9';
+          ctx.fillText(ent.name, cx, cy + radius + 10);
+          ctx.restore();
+        }
+      });
+
+      for (let r = 0; r < count; r++) {
+        for (let c = 0; c < count; c++) {
+          if (floor.fog[`${c},${r}`]) {
+            ctx.fillStyle = isGM ? 'rgba(2, 6, 23, 0.55)' : 'rgba(2, 6, 23, 0.96)';
+            ctx.fillRect(pad + c * cellSize, pad + r * cellSize, cellSize, cellSize);
+          }
+        }
+      }
+
+      if (activeTool === 'ruler' && rulerStart && rulerEnd) {
+        const x1 = pad + (rulerStart.col + 0.5) * cellSize, y1 = pad + (rulerStart.row + 0.5) * cellSize;
+        const x2 = pad + (rulerEnd.col + 0.5) * cellSize, y2 = pad + (rulerEnd.row + 0.5) * cellSize;
+        const distCells = Math.hypot(rulerEnd.col - rulerStart.col, rulerEnd.row - rulerStart.row);
+        const text = `${distCells.toFixed(1)} кл. (${(distCells * state.cellMeters).toFixed(1)} м)`;
+
+        ctx.save();
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+        ctx.strokeStyle = '#22d3ee'; ctx.lineWidth = 2.5; ctx.setLineDash([6, 4]); ctx.stroke(); ctx.setLineDash([]);
+        const mx = (x1 + x2) / 2, my = (y1 + y2) / 2 - 12;
+        ctx.font = 'bold 11px "JetBrains Mono", monospace';
+        const w = ctx.measureText(text).width + 14;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.95)'; ctx.fillRect(mx - w / 2, my - 10, w, 20);
+        ctx.strokeStyle = '#22d3ee'; ctx.strokeRect(mx - w / 2, my - 10, w, 20);
+        ctx.fillStyle = '#22d3ee'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(text, mx, my);
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+
+    // =========================================================================
+    // 9. ОБРОБНИКИ ПОДІЙ ТА MQTT
+    // =========================================================================
+    function setupCanvasListeners() {
+      canvas.addEventListener('contextmenu', e => e.preventDefault());
+      canvas.addEventListener('wheel', (e) => { e.preventDefault(); stepZoom(e.deltaY < 0 ? 0.12 : -0.12); }, { passive: false });
+
+      canvas.addEventListener('mousedown', (e) => {
+        if (e.button === 1 || e.button === 2) {
+          isPanning = true; panStart = { x: e.clientX - camera.x, y: e.clientY - camera.y }; return;
+        }
+        const { bx, by } = screenToBoardCoords(e.clientX, e.clientY);
+        const cell = boardToGridCell(bx, by);
+        if (!cell.inBounds) return;
+        const floor = getCurrentFloor();
+
+        if (activeTool === 'select') {
+          const hit = [...floor.entities].reverse().find(ent => {
+            if (ent.hidden && !isGM) return false;
+            if (!isGM && !ent.isPlayerToken && ent.owner !== activeCharacter.name) return false;
+            const span = Number(ent.cells || 1);
+            return cell.col >= ent.col && cell.col < ent.col + span && cell.row >= ent.row && cell.row < ent.row + span;
+          });
+          if (hit) {
+            selectedEntityId = hit.id;
+            if (isGM || hit.owner === activeCharacter.name || hit.isPlayerToken) isDraggingEntity = true;
+          } else selectedEntityId = null;
+          updateInspectorPanel(); renderInSpaceList(); requestRender();
+        } else if (activeTool === 'ruler') {
+          rulerStart = { col: cell.col, row: cell.row }; rulerEnd = { col: cell.col, row: cell.row }; requestRender();
+        } else if (activeTool === 'text' && isGM) {
+          const txt = prompt('Введіть текст мітки для гравців:');
+          if (txt && txt.trim()) {
+            floor.entities.push({ id: 'txt_' + Date.now(), name: txt.trim(), showLabel: true, kind: 'text', cells: 1, color: '#f8fafc', col: cell.col, row: cell.row, scale: 1, rotation: 0, owner: activeCharacter.name });
+            saveCurrentStructureToCache(); renderInSpaceList(); requestRender(); publishTabletopState('ADD_TEXT');
+          }
+          setActiveTool('select');
+        } else if (activeTool === 'zone' && isGM) {
+          zoneDragStart = { col: cell.col, row: cell.row }; zoneDragCurrent = { col: cell.col, row: cell.row }; requestRender();
+        } else if (['wall_cell', 'door_cell', 'floor_cell', 'hazard', 'erase_cell', 'fog_brush'].includes(activeTool) && isGM) {
+          isPaintingCells = true; applyBrushToCell(cell.col, cell.row);
+        }
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (isPanning) { camera.x = e.clientX - panStart.x; camera.y = e.clientY - panStart.y; requestRender(); return; }
+        const { bx, by } = screenToBoardCoords(e.clientX, e.clientY);
+        const cell = boardToGridCell(bx, by);
+        if (cell.inBounds) {
+          document.getElementById('hoverCoordText').textContent = `${COORD_LETTERS[cell.col] || 'А'}-${cell.row + 1}`;
+        }
+
+        if (isDraggingEntity && selectedEntityId && cell.inBounds) {
+          const floor = getCurrentFloor();
+          const ent = floor.entities.find(x => x.id === selectedEntityId);
+          if (ent && (ent.col !== cell.col || ent.row !== cell.row)) {
+            if (!isGM && floor.walls[`${cell.col},${cell.row}`]) return;
+            ent.col = cell.col; ent.row = cell.row; renderInSpaceList(); requestRender();
+          }
+        } else if (zoneDragStart && cell.inBounds) { zoneDragCurrent = { col: cell.col, row: cell.row }; requestRender(); }
+        else if (isPaintingCells && cell.inBounds) { applyBrushToCell(cell.col, cell.row); }
+        else if (activeTool === 'ruler' && rulerStart && cell.inBounds) { rulerEnd = { col: cell.col, row: cell.row }; requestRender(); }
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isPanning) isPanning = false;
+        if (isDraggingEntity) { isDraggingEntity = false; saveCurrentStructureToCache(); publishTabletopState('MOVE_ENTITY'); }
+        if (zoneDragStart && zoneDragCurrent) {
+          const label = prompt('Підпис виділеної ділянки (залиште порожнім для рамки без тексту):', '');
+          if (label !== null) {
+            getCurrentFloor().zones.push({
+              x1: Math.min(zoneDragStart.col, zoneDragCurrent.col), y1: Math.min(zoneDragStart.row, zoneDragCurrent.row),
+              x2: Math.max(zoneDragStart.col, zoneDragCurrent.col), y2: Math.max(zoneDragStart.row, zoneDragCurrent.row),
+              label: label.trim(), color: '#10b981'
+            });
+            saveCurrentStructureToCache(); publishTabletopState('ADD_ZONE');
+          }
+          zoneDragStart = null; zoneDragCurrent = null; requestRender();
+        }
+        if (isPaintingCells) { isPaintingCells = false; saveCurrentStructureToCache(); publishTabletopState('CELL_BRUSH'); }
+      });
+    }
+
+    function applyBrushToCell(col, row) {
+      if (!isGM) return;
+      const floor = getCurrentFloor(), key = `${col},${row}`;
+      if (activeTool === 'wall_cell') { floor.walls[key] = true; delete floor.doors[key]; invalidateArchBuffer(); }
+      else if (activeTool === 'door_cell') { delete floor.walls[key]; floor.doors[key] = true; floor.floorTiles[key] = 'metal'; invalidateArchBuffer(); }
+      else if (activeTool === 'floor_cell') { delete floor.walls[key]; floor.floorTiles[key] = 'stone_path'; invalidateArchBuffer(); }
+      else if (activeTool === 'hazard') { floor.hazards[key] = activeHazardType; requestRender(); }
+      else if (activeTool === 'erase_cell') { delete floor.walls[key]; delete floor.doors[key]; delete floor.hazards[key]; delete floor.fog[key]; floor.floorTiles[key] = 'stone'; invalidateArchBuffer(); }
+      else if (activeTool === 'fog_brush') { if (floor.fog[key]) delete floor.fog[key]; else floor.fog[key] = true; requestRender(); }
+    }
+
+    function initMqttConnection() {
+      const dot = document.getElementById('mqttDot');
+      const statusText = document.getElementById('mqttStatusText');
+      try {
+        const client = mqtt.connect(MQTT_BROKER_URL, { clientId, clean: true, connectTimeout: 5000, reconnectPeriod: 4000 });
+        window.mqttClient = client;
+
+        client.on('connect', () => {
+          if (dot) dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+          if (statusText) statusText.textContent = 'MQTT: Онлайн';
+          client.subscribe([MQTT_TOPIC_COMMAND, MQTT_TOPIC_ZONA_SYNC, MQTT_TOPIC_DICE_SYNC]);
+          if (isGM) publishTabletopState('GM_ONLINE');
+          else client.publish(MQTT_TOPIC_ZONA_SYNC, JSON.stringify({ sender: clientId, type: 'REQUEST_STATE', charName: activeCharacter.name }));
+        });
+
+        client.on('offline', () => {
+          if (dot) dot.className = 'w-2 h-2 rounded-full bg-rose-500';
+          if (statusText) statusText.textContent = 'MQTT: Офлайн';
+        });
+
+        client.on('message', (topic, message) => {
+          try {
+            const packet = JSON.parse(message.toString());
+            if (packet.sender === clientId) return;
+            if (topic === MQTT_TOPIC_COMMAND && packet.type === 'GROUP_SECTOR_TRANSFER') {
+              window.location.href = `sector${state.sectorId || 1}.html?role=player`;
+              return;
+            }
+            if (topic === MQTT_TOPIC_ZONA_SYNC) {
+              if (packet.type === 'REQUEST_STATE' && isGM) publishTabletopState('STATE_RESPONSE');
+              else if (packet.type === 'TABLETOP_SYNC' && packet.payload) {
+                const localBg = state.bg.dataUrl;
+                state = Object.assign(state, packet.payload);
+                if (!state.bg.dataUrl && localBg) state.bg.dataUrl = localBg;
+                else if (state.bg.dataUrl && state.bg.dataUrl !== localBg) loadBackgroundDataUrl(state.bg.dataUrl);
+                saveCurrentStructureToCache();
+                applyRoleAndCharacterUI(); syncSlidersWithState(); renderInSpaceList(); invalidateArchBuffer();
+              }
+              return;
+            }
+            if (topic === MQTT_TOPIC_DICE_SYNC && packet.logLine) {
+              appendDiceLog(packet.logLine);
+            }
+          } catch (err) {}
+        });
+      } catch (e) {}
+    }
+
+    function publishTabletopState(reason = 'UPDATE') {
+      if (!window.mqttClient || !window.mqttClient.connected) return;
+      const copy = JSON.parse(JSON.stringify(state));
+      if (copy.bg) copy.bg.dataUrl = state.bg.mqttDataUrl || null;
+      window.mqttClient.publish(MQTT_TOPIC_ZONA_SYNC, JSON.stringify({ sender: clientId, type: 'TABLETOP_SYNC', reason, payload: copy }));
+    }
+
+    function publishDiceEvent(data) {
+      if (!window.mqttClient || !window.mqttClient.connected) return;
+      window.mqttClient.publish(MQTT_TOPIC_DICE_SYNC, JSON.stringify(Object.assign({ sender: clientId, timestamp: Date.now() }, data)));
+    }
+
+    function downloadUpdatedHtml() {
+      if (!isGM) return;
+      try {
+        saveCurrentStructureToCache();
+        const holder = document.getElementById('embedded-zona-state');
+        if (holder) holder.textContent = JSON.stringify(state);
+        const blob = new Blob(['<!DOCTYPE html>\n' + document.documentElement.outerHTML], { type: 'text/html;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'ZONA_DANGER.html';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } catch (e) {}
+    }
+
+    window.addEventListener('DOMContentLoaded', initZonaDangerApp);
+  </script>
+</body>
+</html>
